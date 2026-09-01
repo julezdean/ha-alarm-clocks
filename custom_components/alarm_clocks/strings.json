@@ -1,0 +1,172 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add alarm clock",
+        "description": "Creates a new alarm clock. Alarm time, weekdays and all other settings are configured afterwards through the entities of the alarm clock.",
+        "data": {
+          "name": "Name"
+        },
+        "data_description": {
+          "name": "Used as the device name, for example \"Alarm 1\"."
+        }
+      },
+      "reconfigure": {
+        "title": "Rename alarm clock",
+        "data": {
+          "name": "Name"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "An alarm clock with this name already exists.",
+      "reconfigure_successful": "The alarm clock was renamed."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Scripts",
+        "description": "All script fields are optional. Leave a field empty to skip that step.",
+        "data": {
+          "alarm_script": "Alarm script",
+          "pre_script": "Pre script",
+          "post_script": "Post script",
+          "on_snooze_script": "Snooze script",
+          "on_dismiss_script": "Dismiss script"
+        },
+        "data_description": {
+          "alarm_script": "Runs while the alarm is ringing and is stopped on snooze or dismiss.",
+          "pre_script": "Runs the configured number of minutes before the alarm time.",
+          "post_script": "Runs after the post offset once the alarm has been dismissed.",
+          "on_snooze_script": "Runs immediately when snoozing.",
+          "on_dismiss_script": "Runs immediately when dismissing."
+        }
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "enabled": {
+        "name": "Enabled"
+      },
+      "day_mon": {
+        "name": "Monday"
+      },
+      "day_tue": {
+        "name": "Tuesday"
+      },
+      "day_wed": {
+        "name": "Wednesday"
+      },
+      "day_thu": {
+        "name": "Thursday"
+      },
+      "day_fri": {
+        "name": "Friday"
+      },
+      "day_sat": {
+        "name": "Saturday"
+      },
+      "day_sun": {
+        "name": "Sunday"
+      }
+    },
+    "time": {
+      "alarm_time": {
+        "name": "Alarm time"
+      }
+    },
+    "number": {
+      "snooze_duration": {
+        "name": "Snooze duration"
+      },
+      "pre_offset": {
+        "name": "Pre script offset"
+      },
+      "post_offset": {
+        "name": "Post script delay"
+      },
+      "auto_dismiss": {
+        "name": "Auto dismiss after"
+      }
+    },
+    "binary_sensor": {
+      "ringing": {
+        "name": "Ringing"
+      }
+    },
+    "sensor": {
+      "next_alarm": {
+        "name": "Next alarm"
+      },
+      "snooze_until": {
+        "name": "Snooze until"
+      },
+      "state": {
+        "name": "Status",
+        "state": {
+          "disabled": "Disabled",
+          "armed": "Armed",
+          "ringing": "Ringing",
+          "snoozed": "Snoozed",
+          "pre_active": "Pre phase",
+          "post_pending": "Post action pending"
+        }
+      }
+    },
+    "button": {
+      "snooze": {
+        "name": "Snooze"
+      },
+      "dismiss": {
+        "name": "Dismiss"
+      }
+    }
+  },
+  "services": {
+    "snooze": {
+      "name": "Snooze",
+      "description": "Snoozes a ringing alarm or extends a running snooze.",
+      "fields": {
+        "duration": {
+          "name": "Duration",
+          "description": "Snooze duration in minutes. Defaults to the configured duration."
+        }
+      }
+    },
+    "dismiss": {
+      "name": "Dismiss",
+      "description": "Stops a ringing alarm or a running snooze and starts the post action."
+    },
+    "trigger_alarm": {
+      "name": "Trigger alarm",
+      "description": "Triggers the alarm immediately, for example for testing."
+    },
+    "set_alarm": {
+      "name": "Set alarm",
+      "description": "Sets the alarm time and/or the weekdays.",
+      "fields": {
+        "time": {
+          "name": "Alarm time",
+          "description": "New alarm time."
+        },
+        "days": {
+          "name": "Weekdays",
+          "description": "Active weekdays. An empty list means a one-shot alarm."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "device_not_found": {
+      "message": "Device {device_id} was not found."
+    },
+    "entity_not_found": {
+      "message": "Entity {entity_id} was not found."
+    },
+    "no_alarm_clocks_target": {
+      "message": "The service call did not target a loaded alarm clock."
+    }
+  }
+}

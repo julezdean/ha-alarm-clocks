@@ -1,0 +1,172 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Wecker hinzufügen",
+        "description": "Legt einen neuen Wecker an. Weckzeit, Wochentage und alle weiteren Einstellungen werden anschließend über die Entities des Weckers gesetzt.",
+        "data": {
+          "name": "Name"
+        },
+        "data_description": {
+          "name": "Wird als Gerätename verwendet, zum Beispiel \"Wecker 1\"."
+        }
+      },
+      "reconfigure": {
+        "title": "Wecker umbenennen",
+        "data": {
+          "name": "Name"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Ein Wecker mit diesem Namen existiert bereits.",
+      "reconfigure_successful": "Der Wecker wurde umbenannt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Scripts",
+        "description": "Alle Script-Felder sind optional. Ein leeres Feld bedeutet, dass dieser Schritt übersprungen wird.",
+        "data": {
+          "alarm_script": "Alarm-Script",
+          "pre_script": "Pre-Script",
+          "post_script": "Post-Script",
+          "on_snooze_script": "Snooze-Script",
+          "on_dismiss_script": "Dismiss-Script"
+        },
+        "data_description": {
+          "alarm_script": "Läuft während des Klingelns und wird bei Snooze oder Dismiss gestoppt.",
+          "pre_script": "Läuft die eingestellte Anzahl Minuten vor der Weckzeit.",
+          "post_script": "Läuft nach der Post-Verzögerung, sobald der Wecker beendet wurde.",
+          "on_snooze_script": "Läuft direkt beim Schlummern.",
+          "on_dismiss_script": "Läuft direkt beim Beenden."
+        }
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "enabled": {
+        "name": "Aktiviert"
+      },
+      "day_mon": {
+        "name": "Montag"
+      },
+      "day_tue": {
+        "name": "Dienstag"
+      },
+      "day_wed": {
+        "name": "Mittwoch"
+      },
+      "day_thu": {
+        "name": "Donnerstag"
+      },
+      "day_fri": {
+        "name": "Freitag"
+      },
+      "day_sat": {
+        "name": "Samstag"
+      },
+      "day_sun": {
+        "name": "Sonntag"
+      }
+    },
+    "time": {
+      "alarm_time": {
+        "name": "Weckzeit"
+      }
+    },
+    "number": {
+      "snooze_duration": {
+        "name": "Snooze-Dauer"
+      },
+      "pre_offset": {
+        "name": "Pre-Script Vorlauf"
+      },
+      "post_offset": {
+        "name": "Post-Script Verzögerung"
+      },
+      "auto_dismiss": {
+        "name": "Auto-Dismiss nach"
+      }
+    },
+    "binary_sensor": {
+      "ringing": {
+        "name": "Klingelt"
+      }
+    },
+    "sensor": {
+      "next_alarm": {
+        "name": "Nächster Alarm"
+      },
+      "snooze_until": {
+        "name": "Snooze bis"
+      },
+      "state": {
+        "name": "Status",
+        "state": {
+          "disabled": "Deaktiviert",
+          "armed": "Scharf",
+          "ringing": "Klingelt",
+          "snoozed": "Schlummert",
+          "pre_active": "Vorlauf",
+          "post_pending": "Post-Aktion ausstehend"
+        }
+      }
+    },
+    "button": {
+      "snooze": {
+        "name": "Snooze"
+      },
+      "dismiss": {
+        "name": "Dismiss"
+      }
+    }
+  },
+  "services": {
+    "snooze": {
+      "name": "Schlummern",
+      "description": "Schlummert einen klingelnden Wecker oder verlängert einen laufenden Snooze.",
+      "fields": {
+        "duration": {
+          "name": "Dauer",
+          "description": "Snooze-Dauer in Minuten. Ohne Angabe wird die konfigurierte Dauer verwendet."
+        }
+      }
+    },
+    "dismiss": {
+      "name": "Beenden",
+      "description": "Beendet Klingeln oder Snooze und startet die Post-Aktion."
+    },
+    "trigger_alarm": {
+      "name": "Alarm auslösen",
+      "description": "Löst den Alarm sofort aus, zum Beispiel zum Testen."
+    },
+    "set_alarm": {
+      "name": "Wecker einstellen",
+      "description": "Setzt Weckzeit und/oder Wochentage.",
+      "fields": {
+        "time": {
+          "name": "Weckzeit",
+          "description": "Neue Weckzeit."
+        },
+        "days": {
+          "name": "Wochentage",
+          "description": "Aktive Wochentage. Eine leere Liste bedeutet einmaliger Wecker."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "device_not_found": {
+      "message": "Das Gerät {device_id} wurde nicht gefunden."
+    },
+    "entity_not_found": {
+      "message": "Die Entität {entity_id} wurde nicht gefunden."
+    },
+    "no_alarm_clocks_target": {
+      "message": "Der Service-Aufruf hat keinen geladenen Wecker als Ziel."
+    }
+  }
+}
