@@ -7,8 +7,8 @@ from pathlib import Path
 
 import voluptuous as vol
 
-from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import ATTR_DEVICE_ID, ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -114,35 +114,80 @@ def _async_resolve_coordinators(
     return coordinators
 
 
-async def _async_register_card(hass: HomeAssistant) -> None:
-    """Serve the bundled Lovelace card and register it with the frontend.
+async def _async_card_resources(hass: HomeAssistant):
+    """Return the Lovelace resource collection, or None when unavailable.
 
-    This way the user neither has to install the card separately nor add it
-    under Dashboards -> Resources.
+    The structure of ``hass.data["lovelace"]`` changed over Home Assistant
+    versions: it used to be a plain dict and is a dataclass in newer releases.
+    Both are handled here.
+    """
+    data = hass.data.get(LOVELACE_DOMAIN)
+    if data is None:
+        return None
+    if isinstance(data, dict):
+        return data.get("resources")
+    return getattr(data, "resources", None)
+
+
+async def _async_register_card(hass: HomeAssistant) -> None:
+    """Serve the bundled Lovelace card and register it as a Lovelace resource.
+
+    Registering a real resource is what the frontend reliably picks up. The
+    version is part of the URL so browsers fetch the new file after an update.
     """
     if hass.data.setdefault(DOMAIN, {}).get(CARD_REGISTERED):
         return
 
     path = Path(__file__).parent / "frontend" / CARD_FILENAME
     if not await hass.async_add_executor_job(path.is_file):
-        _LOGGER.warning(
-            "Lovelace card %s not found, it will not be registered", path
-        )
+        _LOGGER.warning("Lovelace card %s not found, it will not be registered", path)
         return
 
     try:
         await hass.http.async_register_static_paths(
             [StaticPathConfig(CARD_URL, str(path), False)]
         )
-        integration = await async_get_integration(hass, DOMAIN)
-        frontend.add_extra_js_url(hass, f"{CARD_URL}?v={integration.version}")
     except (HomeAssistantError, RuntimeError, ValueError) as err:
         # Without the card the integration remains fully functional.
-        _LOGGER.error("Lovelace card could not be registered: %s", err)
+        _LOGGER.error("Lovelace card could not be served: %s", err)
         return
 
     hass.data[DOMAIN][CARD_REGISTERED] = True
-    _LOGGER.debug("Lovelace card registered at %s", CARD_URL)
+
+    integration = await async_get_integration(hass, DOMAIN)
+    url = f"{CARD_URL}?v={integration.version}"
+
+    resources = await _async_card_resources(hass)
+    if resources is None or not hasattr(resources, "async_create_item"):
+        # Lovelace is missing or runs with YAML managed resources, where the
+        # integration must not write. The user has to add the resource once.
+        _LOGGER.warning(
+            "Could not register the Lovelace card automatically. Add %s as a "
+            "JavaScript module under Settings -> Dashboards -> Resources",
+            url,
+        )
+        return
+
+    try:
+        await resources.async_get_info()
+        existing = [
+            item
+            for item in (resources.async_items() or [])
+            if str(item.get("url", "")).split("?", 1)[0] == CARD_URL
+        ]
+        if not existing:
+            await resources.async_create_item({"res_type": "module", "url": url})
+            _LOGGER.debug("Lovelace card registered as a resource: %s", url)
+        elif existing[0].get("url") != url:
+            await resources.async_update_item(existing[0]["id"], {"url": url})
+            _LOGGER.debug("Lovelace card resource updated to %s", url)
+    except (HomeAssistantError, KeyError, TypeError, ValueError) as err:
+        _LOGGER.warning(
+            "Could not register the Lovelace card automatically (%s). Add %s as "
+            "a JavaScript module under Settings -> Dashboards -> Resources",
+            err,
+            url,
+        )
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
