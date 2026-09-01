@@ -7,7 +7,7 @@ Every alarm clock is its own device with its own entities. Adding another one
 is a single click on **Add integration**, with no configuration files and no
 restart.
 
-![The list card and two alarm cards on a dashboard](images/screenshot-cards.png)
+![The list card and two alarm cards on a dashboard](https://raw.githubusercontent.com/julezdean/ha-alarm-clocks/main/images/screenshot-cards.png)
 
 ## How it works
 
