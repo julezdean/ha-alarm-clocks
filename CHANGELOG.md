@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-09-01
+
+### Added
+
+- Brand images shipped with the integration in `custom_components/alarm_clocks/brand/`,
+  so Home Assistant shows the icon without a detour through the brands repository
+  (requires Home Assistant 2026.3 or newer)
+
+## [1.0.1] - 2026-09-01
+
+### Changed
+
+- Dashboard screenshot in the README
+
 ## [1.0.0] - 2026-08-31
 
 ### Added
