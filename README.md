@@ -255,6 +255,9 @@ in `card/`.
 
 ```bash
 pip install -r requirements_test.txt
+# The integration depends on the frontend component, which needs the
+# matching frontend package in the test environment:
+pip install "home-assistant-frontend==$(python -c "import json, pathlib, homeassistant; m = pathlib.Path(homeassistant.__file__).parent / 'components/frontend/manifest.json'; print(json.loads(m.read_text())['requirements'][0].split('==')[1])")"
 pytest
 
 cd card

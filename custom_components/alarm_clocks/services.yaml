@@ -1,7 +1,5 @@
 snooze:
   target:
-    device:
-      integration: alarm_clocks
     entity:
       integration: alarm_clocks
   fields:
@@ -18,22 +16,16 @@ snooze:
 
 dismiss:
   target:
-    device:
-      integration: alarm_clocks
     entity:
       integration: alarm_clocks
 
 trigger_alarm:
   target:
-    device:
-      integration: alarm_clocks
     entity:
       integration: alarm_clocks
 
 set_alarm:
   target:
-    device:
-      integration: alarm_clocks
     entity:
       integration: alarm_clocks
   fields:

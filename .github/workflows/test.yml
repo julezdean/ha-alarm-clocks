@@ -15,6 +15,11 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -r requirements_test.txt
+      - name: Install the frontend package matching Home Assistant
+        run: |
+          python -c "import json, pathlib, homeassistant; m = pathlib.Path(homeassistant.__file__).parent / 'components/frontend/manifest.json'; print(json.loads(m.read_text())['requirements'][0])" > frontend-requirement.txt
+          cat frontend-requirement.txt
+          pip install -r frontend-requirement.txt
       - run: pytest
 
   card:
