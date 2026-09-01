@@ -15,8 +15,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
-from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL
-
 from custom_components.alarm_clocks.const import (
     CARD_FILENAME,
     CONF_PRE_OFFSET,
@@ -230,7 +228,13 @@ async def test_card_is_registered(
     """
     assert hass.data[DOMAIN][CARD_REGISTERED] is True
 
-    urls = hass.data[DATA_EXTRA_MODULE_URL].urls
+    resources = hass.data["lovelace"]
+    resources = (
+        resources.get("resources")
+        if isinstance(resources, dict)
+        else resources.resources
+    )
+    urls = [item["url"] for item in resources.async_items()]
     assert any(url.startswith(CARD_URL) for url in urls), urls
 
     assert (

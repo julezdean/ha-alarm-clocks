@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [1.0.4] - 2026-09-01
+
+### Fixed
+
+- The bundled Lovelace card is now registered as a real Lovelace resource
+  instead of relying on `frontend.add_extra_js_url`, which did not reach the
+  frontend on every setup and left the cards reported as unknown custom
+  elements. An existing manual resource entry for the card is reused and kept
+  up to date instead of being duplicated. When Lovelace manages its resources
+  through YAML, the log explains which URL to add by hand.
+
 ## [1.0.2] - 2026-09-01
 
 ### Added

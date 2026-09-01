@@ -111,11 +111,14 @@ in contrast, follow the language of Home Assistant.
 
 ## Lovelace card
 
-The card is part of the integration and is served and registered with the
-frontend automatically on startup. Neither a separate installation nor an
-entry under **Dashboards → Resources** is required. After an update of the
-integration the browser picks up the new version, because the URL carries the
-version from `manifest.json` as a parameter.
+The card is part of the integration. On startup it is served and registered as
+a Lovelace resource automatically, so no separate installation is required. The
+resource URL carries the version from `manifest.json`, so the browser picks up
+the new file after an update.
+
+If Lovelace manages its resources through YAML, the integration does not write
+to that configuration. In that case the log names the URL to add manually as a
+JavaScript module.
 
 Two cards are included.
 
