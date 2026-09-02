@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-09-02
+
+### Fixed
+
+- The `duration` field of the `snooze` service accepted a minimum of 1 minute in
+  the user interface, while the service itself accepts 0. A duration of 0
+  switches snoozing off and can now be selected in the user interface as well.
+
 ## [1.1.0] - 2026-09-02
 
 ### Changed
