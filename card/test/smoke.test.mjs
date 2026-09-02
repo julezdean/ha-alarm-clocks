@@ -102,6 +102,13 @@ async function mount(tag, config, hass) {
   return card;
 }
 
+/** The time shown by the stepper component, as "HH:MM". */
+function steppedTime(card) {
+  const stepper = card.shadowRoot.querySelector("alarm-clocks-time-stepper");
+  if (!stepper) return "";
+  return `${String(stepper.hours).padStart(2, "0")}:${String(stepper.minutes).padStart(2, "0")}`;
+}
+
 /** Visible text only, without the injected <style> blocks. */
 function visibleText(card) {
   const root = card.shadowRoot.querySelector("ha-card");
@@ -122,7 +129,7 @@ function check(name, fn) {
   check("armed: shows name, status and alarm time", () => {
     assert.match(text, /Wecker 1/);
     assert.match(text, /Bereit/);
-    assert.match(text, /06:30/);
+    assert.equal(steppedTime(card), "06:30");
     assert.match(text, /in 2 Std\./);
   });
   check("armed: no snooze or dismiss button", () => {
@@ -304,5 +311,52 @@ function check(name, fn) {
 for (const name of results) {
   console.log(`  ok  ${name}`);
 }
+// --- time stepper -----------------------------------------------------------
+{
+  const { hass, calls } = makeHass();
+  const card = await mount(
+    "alarm-clocks-card",
+    { type: "custom:alarm-clocks-card", device_id: DEVICE, minute_step: 5 },
+    hass,
+  );
+  const stepper = card.shadowRoot.querySelector("alarm-clocks-time-stepper");
+
+  check("time stepper: renders hours and minutes as spin buttons", () => {
+    const spinners = stepper.shadowRoot.querySelectorAll('[role="spinbutton"]');
+    assert.equal(spinners.length, 2);
+  });
+
+  check("time stepper: arrow keys change the value", () => {
+    const [hoursEl, minutesEl] = stepper.shadowRoot.querySelectorAll('[role="spinbutton"]');
+    hoursEl.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    assert.equal(stepper.hours, 7);
+    minutesEl.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    assert.equal(stepper.minutes, 25);
+  });
+
+  check("time stepper: hours wrap around midnight", () => {
+    stepper.hours = 23;
+    const [hoursEl] = stepper.shadowRoot.querySelectorAll('[role="spinbutton"]');
+    hoursEl.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    assert.equal(stepper.hours, 0);
+  });
+
+  check("time stepper: minutes snap to the configured step", () => {
+    stepper.minutes = 23;
+    const [, minutesEl] = stepper.shadowRoot.querySelectorAll('[role="spinbutton"]');
+    minutesEl.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    assert.equal(stepper.minutes, 30);
+  });
+
+  check("time stepper: does not call the service on every step", () => {
+    const before = calls.length;
+    const [hoursEl] = stepper.shadowRoot.querySelectorAll('[role="spinbutton"]');
+    for (let i = 0; i < 5; i += 1) {
+      hoursEl.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    }
+    assert.equal(calls.length, before);
+  });
+}
+
 console.log(`\n${results.length} checks passed`);
 process.exit(0);

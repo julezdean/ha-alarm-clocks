@@ -104,6 +104,7 @@ export interface MacaAlarmCardConfig extends LovelaceCardConfig {
   show_settings?: boolean;
   settings_expanded?: boolean;
   show_test_button?: boolean;
+  minute_step?: number;
 }
 
 export interface MacaAlarmListCardConfig extends LovelaceCardConfig {
