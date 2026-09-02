@@ -3,6 +3,7 @@ import { customElement, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 
 import "../components/alarm-clocks-weekday-picker";
+import "../components/alarm-clocks-time-stepper";
 import "../components/alarm-clocks-setting-row";
 
 import {
@@ -11,7 +12,7 @@ import {
   STATUS,
   STATUS_ICONS,
 } from "../const";
-import { dismiss, setNumber, showMoreInfo, snooze, toggleSwitch, triggerAlarm } from "../lib/actions";
+import { dismiss, setNumber, showMoreInfo, snooze, toggleSwitch, triggerAlarm, setTime } from "../lib/actions";
 import { findMacaDevices, resolveDeviceId } from "../lib/discovery";
 import { createLocalizer, languageOf, type Localizer } from "../lib/localize";
 import { buildAlarmView, type AlarmView } from "../lib/model";
@@ -44,6 +45,12 @@ export class MacaAlarmCard extends LitElement {
   @state() private _settingsOpen = false;
 
   @state() private _narrow = false;
+
+  @state() private _pendingTime?: { hours: number; minutes: number };
+
+  private _timeTimer?: number;
+
+  private _pendingSince = 0;
 
   private _hass?: HomeAssistant;
 
@@ -178,6 +185,7 @@ export class MacaAlarmCard extends LitElement {
 
     const view = buildAlarmView(hass, deviceId);
     this._view = view;
+    this._settlePendingTime(view);
 
     if (view.incomplete) {
       return this._renderError(localize("error.incomplete"));
@@ -242,24 +250,79 @@ export class MacaAlarmCard extends LitElement {
 
   private _renderHero(view: AlarmView, localize: Localizer): TemplateResult {
     const language = languageOf(this._hass);
-    const time = view.alarmTime
-      ? `${String(view.alarmTime.hours).padStart(2, "0")}:${String(view.alarmTime.minutes).padStart(2, "0")}`
-      : localize("label.no_time");
+    const editable = Boolean(view.entities.alarmTime);
+    const time = this._pendingTime ?? view.alarmTime;
+
+    if (!time) {
+      return html`
+        <div class="hero">
+          <span class="no-time">${localize("label.no_time")}</span>
+          <div class="meta">${this._renderMeta(view, localize, language)}</div>
+        </div>
+      `;
+    }
 
     return html`
       <div class="hero">
+        <alarm-clocks-time-stepper
+          .hass=${this._hass}
+          .hours=${time.hours}
+          .minutes=${time.minutes}
+          .minuteStep=${this._config?.minute_step ?? 5}
+          .disabled=${!editable}
+          @time-changed=${this._onTimeChanged}
+        ></alarm-clocks-time-stepper>
+        <div class="meta">${this._renderMeta(view, localize, language)}</div>
         <button
           type="button"
-          class="time"
-          ?disabled=${!view.entities.alarmTime}
-          aria-label=${time}
+          class="icon-btn edit-time"
+          aria-label=${localize("action.edit_time")}
+          title=${localize("action.edit_time")}
+          ?disabled=${!editable}
           @click=${() => this._openEntity(view.entities.alarmTime)}
         >
-          ${time}
+          <ha-icon icon="mdi:pencil-outline"></ha-icon>
         </button>
-        <div class="meta">${this._renderMeta(view, localize, language)}</div>
       </div>
     `;
+  }
+
+  /**
+   * Apply a stepped time.
+   *
+   * The display follows immediately while the service call is debounced, so
+   * holding a button does not fire dozens of calls. The stepped value stays on
+   * screen until the entity reports it back; clearing it on a timer made the
+   * time jump back to the old value while it was still on its way.
+   */
+  private _onTimeChanged = (event: CustomEvent<{ hours: number; minutes: number }>): void => {
+    this._pendingTime = { hours: event.detail.hours, minutes: event.detail.minutes };
+    this._pendingSince = Date.now();
+    if (this._timeTimer !== undefined) {
+      window.clearTimeout(this._timeTimer);
+    }
+    this._timeTimer = window.setTimeout(() => {
+      this._timeTimer = undefined;
+      const entityId = this._view?.entities.alarmTime;
+      const pending = this._pendingTime;
+      if (this._hass && entityId && pending) {
+        void setTime(this._hass, entityId, pending.hours, pending.minutes);
+      }
+    }, 600);
+  };
+
+  /** Drop the stepped value once the entity confirms it, or after a timeout. */
+  private _settlePendingTime(view: AlarmView): void {
+    const pending = this._pendingTime;
+    if (!pending) {
+      return;
+    }
+    const confirmed =
+      view.alarmTime?.hours === pending.hours && view.alarmTime?.minutes === pending.minutes;
+    const expired = Date.now() - this._pendingSince > 15000;
+    if (confirmed || expired) {
+      this._pendingTime = undefined;
+    }
   }
 
   private _renderMeta(
@@ -615,33 +678,24 @@ export class MacaAlarmCard extends LitElement {
         gap: 4px 16px;
       }
 
-      .time {
-        padding: 0;
-        border: none;
-        background: transparent;
-        color: var(--primary-text-color);
-        font-family: inherit;
+      .no-time {
+        color: var(--secondary-text-color);
         font-size: 2.4rem;
         font-weight: 300;
-        font-variant-numeric: tabular-nums;
         line-height: 1.1;
-        letter-spacing: -0.02em;
-        cursor: pointer;
       }
 
-      .time:disabled {
-        cursor: default;
-        opacity: 0.6;
+      .edit-time {
+        align-self: flex-start;
+        flex: 0 0 auto;
       }
 
-      .time:focus-visible {
-        outline: 2px solid var(--alarm-clocks-accent);
-        outline-offset: 4px;
-        border-radius: 6px;
+      .edit-time ha-icon {
+        --mdc-icon-size: 20px;
       }
 
-      ha-card.disabled .time {
-        color: var(--secondary-text-color);
+      ha-card.disabled alarm-clocks-time-stepper {
+        opacity: 0.75;
       }
 
       .meta {

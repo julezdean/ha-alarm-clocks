@@ -22,7 +22,7 @@ the cards from source.
 - **Weekdays as a pill row** instead of seven switch rows; with no active day
   a "one-shot" badge is shown.
 - **Snooze and dismiss** only appear when they actually do something.
-- **Tapping the alarm time** opens the Home Assistant time picker.
+- **Keyboard-free time input.** Hours and minutes have their own step buttons; holding one repeats and speeds up. Arrow keys work on both segments, and the mouse wheel steps a segment once it is focused. A pencil button opens the Home Assistant time dialog for exact input.
 - **Collapsible settings** for snooze duration, pre offset, post offset and
   auto dismiss, with the limits taken straight from the number entities.
 - **Overview card** listing all alarm clocks compactly.
@@ -55,6 +55,7 @@ to look it up by hand.
 | `show_settings` | boolean | `true` | Show the settings section. |
 | `settings_expanded` | boolean | `false` | Start with the settings expanded. |
 | `show_test_button` | boolean | `false` | Show a button for `alarm_clocks.trigger_alarm`. |
+| `minute_step` | number | `5` | Step width of the minutes on the time stepper. |
 
 ### Options: `custom:alarm-clocks-list-card`
 

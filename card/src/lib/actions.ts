@@ -39,3 +39,13 @@ export function setNumber(
 ): Promise<unknown> {
   return hass.callService("number", "set_value", { value }, { entity_id: entityId });
 }
+
+export function setTime(
+  hass: HomeAssistant,
+  entityId: string,
+  hours: number,
+  minutes: number,
+): Promise<unknown> {
+  const time = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+  return hass.callService("time", "set_value", { time }, { entity_id: entityId });
+}

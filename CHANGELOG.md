@@ -4,6 +4,25 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-02
+
+### Changed
+
+- The alarm time on the card can now be set without a keyboard. Hours and
+  minutes have their own large step buttons and holding one repeats and speeds
+  up. Arrow keys work on both segments, and the mouse wheel steps a segment
+  once it is focused. The Home Assistant time dialog is still one tap away.
+- The minute step is configurable per card through `minute_step` (default 5).
+- Stepping updates the display immediately and sends one service call once the
+  input settles, instead of one call per step. The stepped value stays visible
+  until the entity confirms it, so the time no longer jumps back to the previous
+  value while the update is on its way.
+
+### Removed
+
+- Swiping vertically over the digits no longer changes the time. It was too easy
+  to trigger by accident while scrolling a dashboard on a touch screen.
+
 ## [1.0.5] - 2026-09-01
 
 ### Fixed

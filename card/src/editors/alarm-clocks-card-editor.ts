@@ -17,6 +17,10 @@ const SCHEMA: FormSchemaItem[] = [
   { name: "device_id", selector: { device: { filter: { integration: ALARM_CLOCKS_DOMAIN } } } },
   { name: "name", selector: { text: {} } },
   {
+    name: "minute_step",
+    selector: { number: { min: 1, max: 30, step: 1, mode: "box", unit_of_measurement: "min" } },
+  },
+  {
     name: "",
     type: "grid",
     schema: [

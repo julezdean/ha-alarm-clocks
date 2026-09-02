@@ -136,6 +136,7 @@ show_next_alarm: true
 show_settings: true
 settings_expanded: false
 show_test_button: false
+minute_step: 5
 ```
 
 Every field except `device_id` is optional, and the card can be configured
