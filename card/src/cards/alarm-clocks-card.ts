@@ -50,6 +50,8 @@ export class MacaAlarmCard extends LitElement {
 
   private _timeTimer?: number;
 
+  private _pendingSince = 0;
+
   private _hass?: HomeAssistant;
 
   private _view?: AlarmView;
@@ -183,6 +185,7 @@ export class MacaAlarmCard extends LitElement {
 
     const view = buildAlarmView(hass, deviceId);
     this._view = view;
+    this._settlePendingTime(view);
 
     if (view.incomplete) {
       return this._renderError(localize("error.incomplete"));
@@ -288,10 +291,13 @@ export class MacaAlarmCard extends LitElement {
    * Apply a stepped time.
    *
    * The display follows immediately while the service call is debounced, so
-   * holding a button does not fire dozens of calls.
+   * holding a button does not fire dozens of calls. The stepped value stays on
+   * screen until the entity reports it back; clearing it on a timer made the
+   * time jump back to the old value while it was still on its way.
    */
   private _onTimeChanged = (event: CustomEvent<{ hours: number; minutes: number }>): void => {
     this._pendingTime = { hours: event.detail.hours, minutes: event.detail.minutes };
+    this._pendingSince = Date.now();
     if (this._timeTimer !== undefined) {
       window.clearTimeout(this._timeTimer);
     }
@@ -302,12 +308,22 @@ export class MacaAlarmCard extends LitElement {
       if (this._hass && entityId && pending) {
         void setTime(this._hass, entityId, pending.hours, pending.minutes);
       }
-      // Keep showing the pending value until the entity reports it back.
-      window.setTimeout(() => {
-        this._pendingTime = undefined;
-      }, 2000);
     }, 600);
   };
+
+  /** Drop the stepped value once the entity confirms it, or after a timeout. */
+  private _settlePendingTime(view: AlarmView): void {
+    const pending = this._pendingTime;
+    if (!pending) {
+      return;
+    }
+    const confirmed =
+      view.alarmTime?.hours === pending.hours && view.alarmTime?.minutes === pending.minutes;
+    const expired = Date.now() - this._pendingSince > 15000;
+    if (confirmed || expired) {
+      this._pendingTime = undefined;
+    }
+  }
 
   private _renderMeta(
     view: AlarmView,

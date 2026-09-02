@@ -10,18 +10,16 @@ const HOLD_DELAY = 450;
 const REPEAT_START = 180;
 /** Fastest repeat interval a hold accelerates to, in milliseconds. */
 const REPEAT_MIN = 60;
-/** Vertical distance for one step when dragging, in pixels. */
-const DRAG_STEP = 18;
-
 type Segment = "hours" | "minutes";
 
 /**
  * Time input that works without a keyboard.
  *
  * Hours and minutes are stepped with large tap targets above and below the
- * digits. Holding a button repeats and accelerates, dragging vertically over
- * the digits steps as well, and the mouse wheel is supported on the desktop.
- * Both segments are focusable spin buttons, so arrow keys work too.
+ * digits. Holding a button repeats and accelerates. Both segments are
+ * focusable spin buttons, so arrow keys work too; the mouse wheel only steps
+ * while a segment is focused, so scrolling the dashboard never changes a
+ * time by accident.
  */
 @customElement("alarm-clocks-time-stepper")
 export class AlarmClocksTimeStepper extends LitElement {
@@ -41,8 +39,6 @@ export class AlarmClocksTimeStepper extends LitElement {
   private _repeatTimer?: number;
 
   private _repeatDelay = REPEAT_START;
-
-  private _dragOrigin?: { y: number; hours: number; minutes: number };
 
   public override disconnectedCallback(): void {
     super.disconnectedCallback();
@@ -95,10 +91,6 @@ export class AlarmClocksTimeStepper extends LitElement {
           aria-valuetext=${String(value).padStart(2, "0")}
           @keydown=${(event: KeyboardEvent) => this._onKeyDown(event, segment)}
           @wheel=${(event: WheelEvent) => this._onWheel(event, segment)}
-          @pointerdown=${(event: PointerEvent) => this._startDrag(event, segment)}
-          @pointermove=${(event: PointerEvent) => this._onDrag(event, segment)}
-          @pointerup=${this._endDrag}
-          @pointercancel=${this._endDrag}
         >
           ${String(value).padStart(2, "0")}
         </div>
@@ -174,36 +166,11 @@ export class AlarmClocksTimeStepper extends LitElement {
     }
   };
 
-  private _startDrag(event: PointerEvent, _segment: Segment): void {
-    if (this.disabled) {
-      return;
-    }
-    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
-    this._dragOrigin = { y: event.clientY, hours: this.hours, minutes: this.minutes };
-  }
-
-  private _onDrag(event: PointerEvent, segment: Segment): void {
-    if (!this._dragOrigin) {
-      return;
-    }
-    event.preventDefault();
-    const steps = Math.trunc((this._dragOrigin.y - event.clientY) / DRAG_STEP);
-    if (steps === 0) {
-      return;
-    }
-    this._dragOrigin.y -= steps * DRAG_STEP;
-    this._step(segment, steps > 0 ? 1 : -1);
-    for (let i = 1; i < Math.abs(steps); i += 1) {
-      this._step(segment, steps > 0 ? 1 : -1);
-    }
-  }
-
-  private _endDrag = (): void => {
-    this._dragOrigin = undefined;
-  };
-
   private _onWheel(event: WheelEvent, segment: Segment): void {
-    if (this.disabled || event.deltaY === 0) {
+    // Only react once the segment is focused, otherwise scrolling past the
+    // card would change the alarm time.
+    const focused = this.shadowRoot?.activeElement === event.currentTarget;
+    if (this.disabled || !focused || event.deltaY === 0) {
       return;
     }
     event.preventDefault();
@@ -228,7 +195,6 @@ export class AlarmClocksTimeStepper extends LitElement {
         display: flex;
         align-items: center;
         gap: 2px;
-        touch-action: none;
         user-select: none;
       }
 
@@ -286,7 +252,7 @@ export class AlarmClocksTimeStepper extends LitElement {
         line-height: 1.1;
         letter-spacing: -0.02em;
         text-align: center;
-        cursor: ns-resize;
+        cursor: pointer;
       }
 
       .value:focus-visible {

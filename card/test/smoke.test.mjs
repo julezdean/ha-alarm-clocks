@@ -348,6 +348,13 @@ for (const name of results) {
     assert.equal(stepper.minutes, 30);
   });
 
+  check("time stepper: the wheel is ignored while the segment is not focused", () => {
+    const before = stepper.hours;
+    const [hoursEl] = stepper.shadowRoot.querySelectorAll('[role="spinbutton"]');
+    hoursEl.dispatchEvent(new window.WheelEvent("wheel", { deltaY: -100, bubbles: true }));
+    assert.equal(stepper.hours, before);
+  });
+
   check("time stepper: does not call the service on every step", () => {
     const before = calls.length;
     const [hoursEl] = stepper.shadowRoot.querySelectorAll('[role="spinbutton"]');
