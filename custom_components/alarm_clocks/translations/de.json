@@ -131,7 +131,7 @@
       "fields": {
         "duration": {
           "name": "Dauer",
-          "description": "Snooze-Dauer in Minuten. Ohne Angabe wird die konfigurierte Dauer verwendet."
+          "description": "Snooze-Dauer in Minuten. 0 deaktiviert das Schlummern. Ohne Angabe wird die konfigurierte Dauer verwendet."
         }
       }
     },
