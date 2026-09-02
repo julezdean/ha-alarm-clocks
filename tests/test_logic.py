@@ -300,6 +300,24 @@ async def test_snooze_duration_zero_disables_snoozing(
     assert hass.states.get(button_id).state == "unavailable"
 
 
+async def test_snooze_service_duration_zero_disables_snoozing(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+) -> None:
+    """An explicit duration of zero switches snoozing off for that call."""
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = config_entry.runtime_data
+    await coordinator.async_trigger_alarm()
+    await hass.async_block_till_done()
+
+    await coordinator.async_snooze(duration=0)
+    await hass.async_block_till_done()
+    assert coordinator.state == STATE_RINGING
+    assert coordinator.runtime.snooze_until is None
+
+
 async def test_post_offset_zero_still_disables_one_shot(
     hass: HomeAssistant, config_entry: MockConfigEntry
 ) -> None:

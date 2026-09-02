@@ -131,7 +131,7 @@
       "fields": {
         "duration": {
           "name": "Duration",
-          "description": "Snooze duration in minutes. Defaults to the configured duration."
+          "description": "Snooze duration in minutes. 0 disables snoozing. Defaults to the configured duration."
         }
       }
     },
