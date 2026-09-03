@@ -89,7 +89,7 @@ export interface LovelaceCardEditor extends HTMLElement {
 /** Grid options for the Sections view (HA 2024.11+). */
 export interface LovelaceGridOptions {
   columns?: number;
-  rows?: number;
+  rows?: number | "auto";
   min_columns?: number;
   min_rows?: number;
   max_columns?: number;

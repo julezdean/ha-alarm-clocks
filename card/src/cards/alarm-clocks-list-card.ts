@@ -97,9 +97,10 @@ export class MacaAlarmListCard extends LitElement {
   }
 
   public getGridOptions(): LovelaceGridOptions {
+    // The height follows the number of alarms, which changes at runtime.
     return {
       columns: 12,
-      rows: 1 + Math.max(1, this._views.length),
+      rows: "auto",
       min_columns: 6,
       min_rows: 2,
     };
