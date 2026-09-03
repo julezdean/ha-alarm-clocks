@@ -157,10 +157,9 @@ export class MacaAlarmCard extends LitElement {
   }
 
   public getGridOptions(): LovelaceGridOptions {
-    let rows = 3;
-    if (this._config?.show_days !== false) rows += 1;
-    if (this._settingsOpen) rows += 2;
-    return { columns: 12, rows, min_columns: 6, min_rows: 3 };
+    // A row count fixes the cell height and is only read when the layout is
+    // built, so expanding the settings would overflow the cell.
+    return { columns: 12, rows: "auto", min_columns: 6, min_rows: 3 };
   }
 
   protected override render(): TemplateResult | typeof nothing {

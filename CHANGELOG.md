@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The cards no longer overlap their neighbours in the sections view. They
+  reported a fixed row count to the grid, which the layout reads only once, so
+  expanding the settings or adding an alarm grew the content beyond its cell.
+  Buttons that ended up outside the cell could not be clicked. Both cards now
+  size their row to the rendered content.
+
 ## [1.1.1] - 2026-09-02
 
 ### Fixed
