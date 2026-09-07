@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [1.1.4] - 2026-09-07
+
+### Fixed
+
+- The card bundle shipped in 1.1.3 was the one built before the console banner
+  was recoloured, so the released card still logged the old colours. Only the
+  banner in the browser console was affected, nothing in the user interface.
+- The build now writes the shipped bundle itself, as a second Rollup output,
+  instead of leaving it to be copied by hand. That is what went wrong above: the
+  bundle under `custom_components/` could fall behind `card/src` without anything
+  noticing until the CI check ran, which is after the push. Watch builds still
+  write only `dist/`, since they are unminified and would disagree with a
+  production build of the same source.
+
 ## [1.1.3] - 2026-09-07
 
 ### Changed
