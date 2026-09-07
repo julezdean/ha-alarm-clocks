@@ -1,36 +1,44 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" color="#ffa600">
   <!-- A dial, not a device. The ring is the cycle, the thickened arc is the span
        the wake-up occupies (pre offset through post offset), and the alarm sits
-       on it as the one element at full opacity. The hands make it read as a
-       clock; they stay at 0.60 so they do not compete with the moment. -->
+       on it as the one element at full opacity.
+
+       Stroke weights are sized for the integrations list, where Home Assistant
+       renders this at about 40px: at that size a 30 unit stroke lands on 1.3
+       real pixels and the icon reads as a faint sketch next to the solid ones.
+       The opacity ladder is deliberately compressed for the same reason -
+       below ~64px it stops reading as hierarchy and only costs contrast.
+
+       The three marks are sized against the arc they sit on, not absolutely:
+       a dot that does not clearly outgrow its own stroke reads as a bulge. -->
   <defs>
     <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="12"/>
     </filter>
   </defs>
 
-  <!-- solid geometry spans x 167..857, y 138..857; centre and scale to fill -->
-  <g transform="translate(512,512) scale(1.14) translate(-512,-497.5)">
+  <!-- solid geometry spans x 156..868, y 118..868; centre and scale to fill -->
+  <g transform="translate(512,512) scale(1.12) translate(-512,-493)">
 
     <!-- the cycle -->
     <circle cx="512" cy="512" r="330" fill="none"
-            stroke="currentColor" stroke-opacity="0.42" stroke-width="30"/>
+            stroke="currentColor" stroke-opacity="0.62" stroke-width="52"/>
 
     <!-- the span from pre offset to post offset -->
     <path d="M 259.2 299.9 A 330 330 0 0 1 764.8 299.9" fill="none"
-          stroke="currentColor" stroke-opacity="0.62" stroke-width="30" stroke-linecap="round"/>
-    <circle cx="259.2" cy="299.9" r="32" fill="currentColor" fill-opacity="0.75"/>
-    <circle cx="764.8" cy="299.9" r="32" fill="currentColor" fill-opacity="0.75"/>
+          stroke="currentColor" stroke-opacity="0.85" stroke-width="54" stroke-linecap="round"/>
+    <circle cx="259.2" cy="299.9" r="50" fill="currentColor" fill-opacity="0.85"/>
+    <circle cx="764.8" cy="299.9" r="50" fill="currentColor" fill-opacity="0.85"/>
 
     <!-- hands at 10:10; the V nests under the arc above it -->
-    <g stroke="currentColor" stroke-opacity="0.60" stroke-width="38" stroke-linecap="round">
+    <g stroke="currentColor" stroke-opacity="0.80" stroke-width="58" stroke-linecap="round">
       <line x1="512" y1="512" x2="685" y2="412"/>
       <line x1="512" y1="512" x2="382" y2="437"/>
     </g>
-    <circle cx="512" cy="512" r="30" fill="currentColor" fill-opacity="0.60"/>
+    <circle cx="512" cy="512" r="34" fill="currentColor" fill-opacity="0.80"/>
 
     <!-- the alarm moment -->
-    <circle cx="512" cy="182" r="70" fill="currentColor" opacity="0.32" filter="url(#softBlur)"/>
-    <circle cx="512" cy="182" r="44" fill="currentColor"/>
+    <circle cx="512" cy="182" r="90" fill="currentColor" opacity="0.32" filter="url(#softBlur)"/>
+    <circle cx="512" cy="182" r="64" fill="currentColor"/>
   </g>
 </svg>
