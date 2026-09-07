@@ -225,6 +225,9 @@ actions:
 - A regular alarm time that falls entirely into a downtime is skipped.
 - If the regular alarm time is reached while the alarm clock is already
   ringing, it is ignored and the next occurrence is scheduled.
+- The integration ships its own icon, which Home Assistant only reads from
+  version 2026.3 onwards. On older versions the integrations page shows an
+  "icon not available" placeholder instead. Everything else works.
 
 ## Troubleshooting
 

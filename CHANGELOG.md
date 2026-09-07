@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [1.1.3] - 2026-09-07
+
+### Changed
+
+- New brand icon. It shows what the integration does rather than the device it
+  is named after: the ring is the cycle, the thickened arc is the span the
+  wake-up occupies from the pre offset to the post offset, and the alarm moment
+  sits on it as the only element at full opacity. The icon ships with the
+  integration instead of being submitted to the brands repository, which Home
+  Assistant reads from version 2026.3 onwards; older versions show a placeholder
+  on the integrations page.
+- The card's console banner follows the icon's amber instead of Home Assistant
+  blue. Dark text on the badge, since white on that amber sits at about 1.96:1.
+
 ## [1.1.2] - 2026-09-03
 
 ### Fixed
