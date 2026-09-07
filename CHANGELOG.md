@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- HACS now installs the integration from an `alarm_clocks.zip` asset attached
+  to the release instead of from the repository tree. GitHub only counts
+  downloads of release assets, which is why the integration showed a star and
+  an issue count in HACS but no download figure, unlike repositories that ship
+  a release asset. A release workflow builds the archive from
+  `custom_components/alarm_clocks/` and attaches it when a release is
+  published, after checking that the tag matches the version in
+  `manifest.json`. Releases up to 1.1.4 keep installing the way they did,
+  since their `hacs.json` does not ask for a zip.
+
 ## [1.1.4] - 2026-09-07
 
 ### Fixed
