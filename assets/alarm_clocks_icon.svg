@@ -1,0 +1,36 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" color="#ffa600">
+  <!-- A dial, not a device. The ring is the cycle, the thickened arc is the span
+       the wake-up occupies (pre offset through post offset), and the alarm sits
+       on it as the one element at full opacity. The hands make it read as a
+       clock; they stay at 0.60 so they do not compete with the moment. -->
+  <defs>
+    <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+  </defs>
+
+  <!-- solid geometry spans x 167..857, y 138..857; centre and scale to fill -->
+  <g transform="translate(512,512) scale(1.14) translate(-512,-497.5)">
+
+    <!-- the cycle -->
+    <circle cx="512" cy="512" r="330" fill="none"
+            stroke="currentColor" stroke-opacity="0.42" stroke-width="30"/>
+
+    <!-- the span from pre offset to post offset -->
+    <path d="M 259.2 299.9 A 330 330 0 0 1 764.8 299.9" fill="none"
+          stroke="currentColor" stroke-opacity="0.62" stroke-width="30" stroke-linecap="round"/>
+    <circle cx="259.2" cy="299.9" r="32" fill="currentColor" fill-opacity="0.75"/>
+    <circle cx="764.8" cy="299.9" r="32" fill="currentColor" fill-opacity="0.75"/>
+
+    <!-- hands at 10:10; the V nests under the arc above it -->
+    <g stroke="currentColor" stroke-opacity="0.60" stroke-width="38" stroke-linecap="round">
+      <line x1="512" y1="512" x2="685" y2="412"/>
+      <line x1="512" y1="512" x2="382" y2="437"/>
+    </g>
+    <circle cx="512" cy="512" r="30" fill="currentColor" fill-opacity="0.60"/>
+
+    <!-- the alarm moment -->
+    <circle cx="512" cy="182" r="70" fill="currentColor" opacity="0.32" filter="url(#softBlur)"/>
+    <circle cx="512" cy="182" r="44" fill="currentColor"/>
+  </g>
+</svg>
