@@ -2,6 +2,8 @@
   "name": "Alarm Clocks & Wake-up Routines",
   "homeassistant": "2025.1.0",
   "render_readme": true,
+  "zip_release": true,
+  "filename": "alarm_clocks.zip",
   "country": [
     "DE"
   ]

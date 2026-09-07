@@ -1,0 +1,40 @@
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    name: attach the HACS archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Fail if the manifest version does not match the tag
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          manifest=$(python3 -c "import json; print(json.load(open('custom_components/alarm_clocks/manifest.json'))['version'])")
+          if [ "$tag" != "v$manifest" ]; then
+            echo "tag $tag does not match manifest version $manifest"
+            exit 1
+          fi
+
+      - name: Build alarm_clocks.zip
+        run: |
+          cd custom_components/alarm_clocks
+          zip -r "$GITHUB_WORKSPACE/alarm_clocks.zip" . \
+            -x "__pycache__/*" "*/__pycache__/*" "*.pyc" ".DS_Store" "*/.DS_Store"
+          unzip -l "$GITHUB_WORKSPACE/alarm_clocks.zip"
+
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            alarm_clocks.zip --clobber
