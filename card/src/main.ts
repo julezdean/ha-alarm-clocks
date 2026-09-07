@@ -26,6 +26,6 @@ window.customCards.push(
 /* eslint-disable no-console */
 console.info(
   `%c ALARM-CLOCKS-CARD %c ${CARD_VERSION} `,
-  "color: white; background: #03a9f4; font-weight: 700;",
-  "color: #03a9f4; background: white; font-weight: 700;",
+  "color: #1c1c1c; background: #ffa600; font-weight: 700;",
+  "color: #b36f00; background: white; font-weight: 700;",
 );
