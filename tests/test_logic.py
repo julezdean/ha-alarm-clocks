@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
 from freezegun.api import FrozenDateTimeFactory
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -34,6 +35,21 @@ from custom_components.alarm_clocks.const import (
     STATE_RINGING,
     STATE_SNOOZED,
 )
+
+
+@pytest.fixture(autouse=True)
+def fixed_clock(freezer: FrozenDateTimeFactory) -> None:
+    """Pin the clock so the tests do not depend on when they run.
+
+    The test instance of Home Assistant runs in US/Pacific and the alarm of
+    the default options rings at 07:00 local time. A test that starts inside
+    one of the phases around it — the pre phase, the ringing window, the post
+    phase — sees a state other than armed right after setup, which is what
+    made the pre phase test fail when CI happened to run at 06:35 Pacific.
+    Monday noon is clear of all of them and keeps the next alarm on a
+    weekday, which the tests expect.
+    """
+    freezer.move_to("2026-01-05 12:00:00-08:00")
 
 
 async def _advance(hass: HomeAssistant, freezer: FrozenDateTimeFactory, **kwargs) -> None:
