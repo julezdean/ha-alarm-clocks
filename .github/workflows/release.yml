@@ -38,3 +38,18 @@ jobs:
         run: |
           gh release upload "${{ github.event.release.tag_name }}" \
             alarm_clocks.zip --clobber
+
+      - name: Take the release notes and the date from the changelog
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if ! python3 scripts/release_notes.py "$TAG" > notes.md; then
+            echo "Leaving the release notes as they are"
+            exit 0
+          fi
+          if date=$(python3 scripts/release_notes.py --date "$TAG"); then
+            gh release edit "$TAG" --notes-file notes.md --title "$date"
+          else
+            gh release edit "$TAG" --notes-file notes.md
+          fi
