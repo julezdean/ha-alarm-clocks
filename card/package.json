@@ -8,6 +8,7 @@
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c --watch",
+    "preview": "echo 'preview: http://localhost:8099/card/preview.html' && python3 -m http.server 8099 --bind 127.0.0.1 --directory ..",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "node test/smoke.test.mjs"

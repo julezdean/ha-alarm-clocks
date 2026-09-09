@@ -1,0 +1,1250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Alarm Clocks Card Preview</title>
+
+    <!--
+      Render harness for the two Lovelace cards. Development only: this file is
+      not part of the release. HACS ships `custom_components/alarm_clocks`
+      (see hacs.json, zip_release), and `card/` stays out of the zip.
+
+      It loads the SHIPPED bundle, not the TypeScript sources, so what is on
+      screen is what a user gets:
+
+          ../custom_components/alarm_clocks/frontend/alarm-clocks-card.js
+
+      Serve it over HTTP from the repository root (ES modules do not load from
+      file://) and open http://localhost:8099/card/preview.html:
+
+          npm run preview        # from card/
+
+      Everything faked below is marked "FAKE". Nothing else is faked: the
+      cards, their components, their styles and their logic are the real
+      bundle.
+
+        1. ha-card, ha-icon, ha-form  - the Home Assistant components the cards
+           use but do not own.
+        2. The `hass` object, including a small backend that ANSWERS service
+           calls by changing state and pushing a new `hass` into every mounted
+           card, the way Home Assistant does.
+        3. Theme variables, taken from the Home Assistant default themes.
+
+      Query parameters:
+        ?theme=light|dark    default light
+        ?lang=de|en          default de
+        ?gallery=<px>        one fixed column width, prose and the narrow
+                             column section hidden, clock frozen: the same
+                             URL gives the same image
+        ?section=<slug,...>  render only these sections and keep their own
+                             column widths, e.g. ?section=narrow
+        ?now=<iso>           freeze the clock, e.g. 2026-01-05T21:40:00
+    -->
+
+    <style>
+      /*
+        FAKE (3/3): Home Assistant theme variables. Values are the defaults of
+        the built-in Light and Dark themes; a user theme can set any of them to
+        something else, which is the point of the cards reading them.
+      */
+      :root {
+        --primary-color: #03a9f4;
+        --accent-color: #ff9800;
+        --primary-text-color: #212121;
+        --secondary-text-color: #727272;
+        --text-primary-color: #ffffff;
+        --disabled-text-color: #bdbdbd;
+        --divider-color: rgba(0, 0, 0, 0.12);
+        --primary-background-color: #fafafa;
+        --secondary-background-color: #e5e5e5;
+        --card-background-color: #ffffff;
+        --ha-card-background: var(--card-background-color);
+        --ha-card-border-radius: 12px;
+        --ha-card-border-color: var(--divider-color);
+        --error-color: #db4437;
+        --warning-color: #ffa600;
+        --success-color: #43a047;
+        --state-inactive-color: #44739e;
+        /* Home Assistant colours an active switch amber, not with the primary
+           colour. The cards fall back to --primary-color when it is absent. */
+        --state-switch-active-color: #ffc107;
+        --mdc-icon-size: 24px;
+
+        --harness-panel: #ffffff;
+        --harness-line: rgba(0, 0, 0, 0.12);
+        --harness-muted: #6b6b6b;
+      }
+
+      html[data-theme="dark"] {
+        --primary-color: #03a9f4;
+        --accent-color: #ff9800;
+        --primary-text-color: #e1e1e1;
+        --secondary-text-color: #9b9b9b;
+        --text-primary-color: #ffffff;
+        --disabled-text-color: #6f6f6f;
+        --divider-color: rgba(225, 225, 225, 0.12);
+        --primary-background-color: #111111;
+        --secondary-background-color: #202020;
+        --card-background-color: #1c1c1c;
+        --ha-card-border-color: rgba(225, 225, 225, 0.12);
+        --error-color: #db4437;
+        --warning-color: #ffa600;
+        --success-color: #43a047;
+        --state-inactive-color: #44739e;
+        --state-switch-active-color: #ffc107;
+
+        --harness-panel: #1c1c1c;
+        --harness-line: rgba(225, 225, 225, 0.12);
+        --harness-muted: #9b9b9b;
+      }
+
+      /*
+        Home Assistant ships Roboto. It is not installed here, so the fallbacks
+        decide the metrics; Helvetica/Arial are closer to Roboto than the macOS
+        system font, but text width is not pixel-identical to a real dashboard.
+      */
+      html {
+        box-sizing: border-box;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: inherit;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px 24px 96px;
+        background: var(--primary-background-color);
+        color: var(--primary-text-color);
+        font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      body[data-gallery] {
+        padding: 20px;
+      }
+
+      h1 {
+        margin: 0 0 4px;
+        font-size: 1.4rem;
+        font-weight: 500;
+      }
+
+      h2 {
+        margin: 40px 0 4px;
+        font-size: 1.05rem;
+        font-weight: 600;
+      }
+
+      body[data-gallery] h1,
+      body[data-gallery] .prose,
+      body[data-gallery] .toolbar,
+      body[data-gallery] .note,
+      body[data-gallery] #log,
+      body[data-gallery] [data-narrow-section] {
+        display: none !important;
+      }
+
+      body[data-gallery] h2 {
+        margin: 24px 0 4px;
+      }
+
+      .prose {
+        max-width: 62ch;
+        margin: 0 0 4px;
+        color: var(--secondary-text-color);
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 12px 0 0;
+      }
+
+      .toolbar a {
+        padding: 4px 10px;
+        border: 1px solid var(--harness-line);
+        border-radius: 999px;
+        background: var(--harness-panel);
+        color: var(--primary-text-color);
+        font-size: 0.8rem;
+        text-decoration: none;
+      }
+
+      .toolbar a[data-active] {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+      }
+
+      .grid {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 24px;
+        margin-top: 16px;
+      }
+
+      .specimen {
+        width: var(--col, 380px);
+        flex: 0 0 auto;
+      }
+
+      .specimen > .label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--harness-muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .specimen > .note {
+        display: block;
+        margin: -2px 0 6px;
+        color: var(--harness-muted);
+        font-size: 0.78rem;
+        font-weight: 400;
+        letter-spacing: normal;
+        text-transform: none;
+      }
+
+      /* A ruler for the narrow columns, so the width is visible in a picture. */
+      .specimen[data-ruler] > .mount {
+        outline: 1px dashed var(--harness-line);
+        outline-offset: 3px;
+      }
+
+      #log {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 10;
+        width: 320px;
+        max-height: 40vh;
+        overflow: auto;
+        padding: 10px 12px;
+        border: 1px solid var(--harness-line);
+        border-radius: 10px;
+        background: var(--harness-panel);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      #log h3 {
+        margin: 0 0 6px;
+        font-family: inherit;
+        font-size: 11px;
+        color: var(--harness-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      #log ol {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      #log li {
+        margin-bottom: 2px;
+        word-break: break-all;
+      }
+
+      #log .empty {
+        color: var(--harness-muted);
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Alarm Clocks card preview</h1>
+    <p class="prose">
+      The shipped bundle
+      <code>custom_components/alarm_clocks/frontend/alarm-clocks-card.js</code>,
+      rendered against a fake Home Assistant. Buttons, toggles and steppers
+      write to that fake and every card re-renders from the new state, so an
+      interaction here goes the same way it goes on a dashboard.
+    </p>
+    <div class="toolbar" id="toolbar"></div>
+
+    <main id="cases"></main>
+
+    <aside id="log">
+      <h3>Service calls &amp; host events</h3>
+      <ol id="log-list"></ol>
+      <p class="empty" id="log-empty">Nothing yet. Press something.</p>
+    </aside>
+
+    <script type="module">
+      const params = new URLSearchParams(location.search);
+      const GALLERY = params.has("gallery") ? Number(params.get("gallery")) || 380 : null;
+      const THEME = params.get("theme") === "dark" ? "dark" : "light";
+      const LANG = params.get("lang") === "en" ? "en" : "de";
+      const ONLY = params.get("section")
+        ? new Set(params.get("section").split(",").map((s) => s.trim()))
+        : null;
+
+      /*
+        A frozen clock makes a screenshot reproducible: the cards render
+        "in 8 h 50 min" and "tomorrow, 06:30" from Date.now(), so without this
+        the same URL gives a different picture every time. Gallery mode freezes
+        by default; ?now= overrides it. A Monday evening, so that "tomorrow"
+        and a weekday alarm are both in play. Parsed as local time.
+      */
+      const DEFAULT_FROZEN = "2026-01-05T21:40:00";
+      const frozenParam = params.get("now") ?? (GALLERY ? DEFAULT_FROZEN : null);
+      if (frozenParam) {
+        const fixed = new Date(frozenParam).getTime();
+        if (Number.isFinite(fixed)) {
+          const RealDate = Date;
+          class FrozenDate extends RealDate {
+            constructor(...args) {
+              if (args.length === 0) super(fixed);
+              else super(...args);
+            }
+            static now() {
+              return fixed;
+            }
+          }
+          globalThis.Date = FrozenDate;
+        }
+      }
+
+      document.documentElement.dataset.theme = THEME;
+      if (GALLERY) {
+        document.body.dataset.gallery = String(GALLERY);
+        document.body.style.setProperty("--col", GALLERY + "px");
+      }
+
+      const NOW = () => Date.now();
+
+      // ---------------------------------------------------------------------
+      // FAKE (1/3): the Home Assistant components the cards use but do not own.
+      // ---------------------------------------------------------------------
+
+      /**
+       * FAKE: <ha-card>. The real one is a slotted container with the card
+       * background, radius and border, plus an optional header. That is all the
+       * cards use of it: `.header` is set as a property by the list card.
+       */
+      class FakeHaCard extends HTMLElement {
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" });
+          this.shadowRoot.innerHTML =
+            "<style>" +
+            ":host{display:block;background:var(--ha-card-background,var(--card-background-color,#fff));" +
+            "border-radius:var(--ha-card-border-radius,12px);" +
+            "border:1px solid var(--ha-card-border-color,var(--divider-color));" +
+            "box-shadow:var(--ha-card-box-shadow,none);color:var(--primary-text-color);}" +
+            ".card-header{display:block;padding:12px 16px 0;font-size:24px;font-weight:400;" +
+            "line-height:1.2;letter-spacing:-0.012em;}" +
+            "</style><h1 class='card-header' hidden></h1><slot></slot>";
+          this._headerEl = this.shadowRoot.querySelector(".card-header");
+        }
+        set header(value) {
+          this._header = value;
+          this._headerEl.textContent = value ?? "";
+          this._headerEl.hidden = !value;
+        }
+        get header() {
+          return this._header;
+        }
+      }
+      customElements.define("ha-card", FakeHaCard);
+
+      /**
+       * FAKE: <ha-icon>. Home Assistant resolves an "mdi:name" against the
+       * Material Design Icons set. Pulling that set in would be a dependency,
+       * so the glyphs below are drawn here: same 24x24 viewBox, same
+       * --mdc-icon-size box, same currentColor fill, so size, alignment and
+       * colour behave like the real thing. Several SHAPES are approximations
+       * and do not match the real MDI artwork; an unknown name renders a
+       * visible placeholder rather than nothing.
+       */
+      const ICONS = {
+        // Real MDI path data.
+        "mdi:plus": "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
+        "mdi:minus": "M19,13H5V11H19V13Z",
+        "mdi:chevron-up": "M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z",
+        "mdi:chevron-down": "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
+        "mdi:alert-circle-outline":
+          "M11,15H13V17H11V15M11,7H13V13H11V7M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20Z",
+        "mdi:play-circle-outline":
+          "M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M10,16.5L16,12L10,7.5V16.5Z",
+        "mdi:pencil-outline":
+          "M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z",
+        // Approximated shapes, built from the alarm-clock silhouette.
+        "mdi:alarm-check":
+          "M7.88,3.39L6.6,1.86L2,5.71L3.29,7.24L7.88,3.39M22,5.72L17.4,1.86L16.11,3.39L20.71,7.25L22,5.72M12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22A9,9 0 0,0 21,13A9,9 0 0,0 12,4M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M10.94,16.5L7.4,12.96L8.81,11.55L10.94,13.67L15.19,9.42L16.6,10.83L10.94,16.5Z",
+        "mdi:alarm-off":
+          "M7.88,3.39L6.6,1.86L2,5.71L3.29,7.24L7.88,3.39M22,5.72L17.4,1.86L16.11,3.39L20.71,7.25L22,5.72M12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22A9,9 0 0,0 21,13A9,9 0 0,0 12,4M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M8.81,9.4L7.4,10.81L10.59,14L7.4,17.19L8.81,18.6L12,15.41L15.19,18.6L16.6,17.19L13.41,14L16.6,10.81L15.19,9.4L12,12.59L8.81,9.4Z",
+        "mdi:alarm-snooze":
+          "M7.88,3.39L6.6,1.86L2,5.71L3.29,7.24L7.88,3.39M22,5.72L17.4,1.86L16.11,3.39L20.71,7.25L22,5.72M12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22A9,9 0 0,0 21,13A9,9 0 0,0 12,4M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M9,10H15V11.8L11.5,15.5H15V17H9V15.2L12.5,11.5H9V10Z",
+        "mdi:alarm-note":
+          "M7.88,3.39L6.6,1.86L2,5.71L3.29,7.24L7.88,3.39M22,5.72L17.4,1.86L16.11,3.39L20.71,7.25L22,5.72M12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22A9,9 0 0,0 21,13A9,9 0 0,0 12,4M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M11,9H13V14H11V9M11,15.5H13V17.5H11V15.5Z",
+        "mdi:bell-ring":
+          "M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21M18.75,7L17.5,7.75C18.28,8.7 18.79,9.86 18.95,11.15L20.5,10.5C20.24,9.15 19.62,7.94 18.75,7M3.5,10.5L5.05,11.15C5.21,9.86 5.72,8.7 6.5,7.75L5.25,7C4.38,7.94 3.76,9.15 3.5,10.5Z",
+        "mdi:weather-sunset-up":
+          "M3,12H1V14H3V12M12,3L8.5,6.5L9.92,7.92L12,5.83L14.08,7.92L15.5,6.5L12,3M20,12V14H22V12H20M12,9A5,5 0 0,0 7,14H9A3,3 0 0,1 12,11A3,3 0 0,1 15,14H17A5,5 0 0,0 12,9M2,17V19H22V17H2M4.93,8.35L6.34,9.76L7.76,8.34L6.34,6.93L4.93,8.35M17.66,6.93L16.24,8.34L17.66,9.76L19.07,8.35L17.66,6.93Z",
+        "mdi:clock-end":
+          "M12,3A9,9 0 0,0 3,12A9,9 0 0,0 12,21A9,9 0 0,0 21,12A9,9 0 0,0 12,3M12,19A7,7 0 0,1 5,12A7,7 0 0,1 12,5A7,7 0 0,1 19,12A7,7 0 0,1 12,19M12.5,7H11V13L15.75,15.85L16.5,14.62L12.5,12.25V7Z",
+      };
+
+      class FakeHaIcon extends HTMLElement {
+        static get observedAttributes() {
+          return ["icon"];
+        }
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" });
+          this.shadowRoot.innerHTML =
+            "<style>:host{display:inline-flex;align-items:center;justify-content:center;" +
+            "width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px);" +
+            "flex-shrink:0;vertical-align:middle;}" +
+            "svg{width:100%;height:100%;fill:currentColor;display:block;}</style>" +
+            "<svg viewBox='0 0 24 24'><path></path></svg>";
+          this._path = this.shadowRoot.querySelector("path");
+        }
+        attributeChangedCallback(_name, _old, value) {
+          this._draw(value);
+        }
+        connectedCallback() {
+          this._draw(this.getAttribute("icon"));
+        }
+        set icon(value) {
+          this.setAttribute("icon", value ?? "");
+        }
+        get icon() {
+          return this.getAttribute("icon");
+        }
+        _draw(name) {
+          // Placeholder for an unmapped name: a visible ring, never an empty box.
+          const fallback =
+            "M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,7V13H13V7H11Z";
+          if (name && !ICONS[name]) {
+            console.warn("[harness] no glyph for", name);
+          }
+          this._path.setAttribute("d", ICONS[name] ?? fallback);
+        }
+      }
+      customElements.define("ha-icon", FakeHaIcon);
+
+      /**
+       * FAKE: <ha-form>. The real one renders a Home Assistant selector per
+       * schema entry. This renders a plain control per entry with the same
+       * contract the editors rely on: `.hass`, `.data`, `.schema`,
+       * `.computeLabel`, and a `value-changed` event carrying the whole
+       * config. Enough to exercise the editors' own code, not a lookalike of
+       * the real form's styling.
+       */
+      class FakeHaForm extends HTMLElement {
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" });
+        }
+        set hass(v) {
+          this._hass = v;
+          this._render();
+        }
+        set data(v) {
+          this._data = v;
+          this._render();
+        }
+        set schema(v) {
+          this._schema = v;
+          this._render();
+        }
+        set computeLabel(v) {
+          this._computeLabel = v;
+          this._render();
+        }
+        _emit(name, value) {
+          this.dispatchEvent(
+            new CustomEvent("value-changed", {
+              detail: { value: { ...this._data, [name]: value } },
+              bubbles: true,
+              composed: true,
+            }),
+          );
+        }
+        _render() {
+          if (!this._schema || !this._data) return;
+          const label = this._computeLabel ?? ((s) => s.name);
+          const root = this.shadowRoot;
+          root.innerHTML =
+            "<style>" +
+            ":host{display:block;font-family:inherit;font-size:14px;color:var(--primary-text-color);}" +
+            ".row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;}" +
+            ".grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;}" +
+            "label{color:var(--secondary-text-color);}" +
+            "input,select{font:inherit;color:inherit;background:var(--card-background-color);" +
+            "border:1px solid var(--divider-color);border-radius:6px;padding:6px 8px;min-width:0;max-width:60%;}" +
+            "input[type=checkbox]{width:18px;height:18px;}" +
+            "</style>";
+          const build = (item, parent) => {
+            if (item.type === "grid") {
+              const grid = document.createElement("div");
+              grid.className = "grid";
+              parent.appendChild(grid);
+              item.schema.forEach((child) => build(child, grid));
+              return;
+            }
+            const row = document.createElement("div");
+            row.className = "row";
+            const text = document.createElement("label");
+            text.textContent = label(item);
+            row.appendChild(text);
+
+            const selector = item.selector ?? {};
+            let control;
+            if ("boolean" in selector) {
+              control = document.createElement("input");
+              control.type = "checkbox";
+              control.checked = Boolean(this._data[item.name]);
+              control.addEventListener("change", () => this._emit(item.name, control.checked));
+            } else if ("number" in selector) {
+              control = document.createElement("input");
+              control.type = "number";
+              const n = selector.number ?? {};
+              if (n.min !== undefined) control.min = n.min;
+              if (n.max !== undefined) control.max = n.max;
+              if (n.step !== undefined) control.step = n.step;
+              control.value = this._data[item.name] ?? "";
+              control.addEventListener("change", () =>
+                this._emit(item.name, control.value === "" ? undefined : Number(control.value)),
+              );
+            } else if ("device" in selector) {
+              control = document.createElement("select");
+              control.multiple = Boolean(selector.device.multiple);
+              if (!control.multiple) {
+                control.appendChild(new Option("—", ""));
+              } else {
+                control.size = 4;
+              }
+              for (const device of Object.values(this._hass?.devices ?? {})) {
+                control.appendChild(new Option(device.name_by_user || device.name, device.id));
+              }
+              const current = this._data[item.name];
+              if (control.multiple) {
+                const wanted = new Set(current ?? []);
+                [...control.options].forEach((o) => (o.selected = wanted.has(o.value)));
+              } else {
+                control.value = current ?? "";
+              }
+              control.addEventListener("change", () =>
+                this._emit(
+                  item.name,
+                  control.multiple
+                    ? [...control.selectedOptions].map((o) => o.value)
+                    : control.value || undefined,
+                ),
+              );
+            } else {
+              control = document.createElement("input");
+              control.type = "text";
+              control.value = this._data[item.name] ?? "";
+              control.addEventListener("change", () =>
+                this._emit(item.name, control.value || undefined),
+              );
+            }
+            row.appendChild(control);
+            parent.appendChild(row);
+          };
+          this._schema.forEach((item) => build(item, root));
+        }
+      }
+      customElements.define("ha-form", FakeHaForm);
+
+      // ---------------------------------------------------------------------
+      // FAKE (2/3): the `hass` object and just enough backend behind it.
+      //
+      // This is the part that has to answer rather than swallow. A service call
+      // changes state here, the state objects are replaced the way Home
+      // Assistant replaces them, and every mounted card gets a new `hass`. So a
+      // click runs the whole path the real dashboard runs: event -> service ->
+      // state -> re-render, including the cards' own "did anything I show
+      // actually change?" check.
+      // ---------------------------------------------------------------------
+
+      const DOMAIN = "alarm_clocks";
+      const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+      /** entity domain and translation_key per role, mirroring the integration. */
+      const ROLES = {
+        enabled: ["switch", "enabled"],
+        alarmTime: ["time", "alarm_time"],
+        snoozeDuration: ["number", "snooze_duration"],
+        preOffset: ["number", "pre_offset"],
+        postOffset: ["number", "post_offset"],
+        autoDismiss: ["number", "auto_dismiss"],
+        ringing: ["binary_sensor", "ringing"],
+        snoozeActive: ["binary_sensor", "snooze_active"],
+        nextAlarm: ["sensor", "next_alarm"],
+        status: ["sensor", "state"],
+        snoozeUntil: ["sensor", "snooze_until"],
+        snoozeButton: ["button", "snooze"],
+        dismissButton: ["button", "dismiss"],
+        ...Object.fromEntries(WEEKDAYS.map((day, i) => ["day" + i, ["switch", "day_" + day]])),
+      };
+
+      const NUMBER_ATTRS = {
+        snoozeDuration: { min: 0, max: 60, step: 1, unit_of_measurement: "min" },
+        preOffset: { min: 0, max: 120, step: 1, unit_of_measurement: "min" },
+        postOffset: { min: 0, max: 120, step: 1, unit_of_measurement: "min" },
+        autoDismiss: { min: 0, max: 180, step: 5, unit_of_measurement: "min" },
+      };
+
+      const store = {
+        devices: {},
+        entities: {},
+        states: {},
+        byDevice: {},
+        calls: [],
+        version: 0,
+      };
+
+      const isoNow = () => new Date(NOW()).toISOString();
+
+      function setState(entityId, state, attributes) {
+        const previous = store.states[entityId];
+        if (!previous) return;
+        // Home Assistant replaces the changed state object and the container,
+        // and leaves untouched entities identical. The cards depend on that.
+        store.states = {
+          ...store.states,
+          [entityId]: {
+            ...previous,
+            state: String(state),
+            attributes: attributes ? { ...previous.attributes, ...attributes } : previous.attributes,
+            last_changed: previous.state === String(state) ? previous.last_changed : isoNow(),
+            last_updated: isoNow(),
+          },
+        };
+      }
+
+      const stateOf = (entityId) => (entityId ? store.states[entityId]?.state : undefined);
+
+      /**
+       * Next occurrence of hh:mm on one of `days` (0 = Monday). No active day
+       * means a one-shot alarm: the next occurrence, today or tomorrow. This is
+       * the Python scheduler's rule, minus its DST handling.
+       */
+      function nextOccurrence(hours, minutes, days) {
+        const now = new Date(NOW());
+        for (let offset = 0; offset < 8; offset += 1) {
+          const candidate = new Date(now);
+          candidate.setDate(candidate.getDate() + offset);
+          candidate.setHours(hours, minutes, 0, 0);
+          if (candidate.getTime() <= now.getTime()) continue;
+          const weekday = (candidate.getDay() + 6) % 7;
+          if (!days.length || days.includes(weekday)) return candidate;
+        }
+        return undefined;
+      }
+
+      function recompute(deviceId) {
+        const map = store.byDevice[deviceId];
+        if (!map) return;
+        const status = stateOf(map.status);
+
+        if (map.nextAlarm === undefined) return;
+
+        if (status === "snoozed") {
+          const until = stateOf(map.snoozeUntil);
+          setState(map.nextAlarm, until && until !== "unknown" ? until : "unknown");
+          return;
+        }
+        const enabled = map.enabled ? stateOf(map.enabled) === "on" : status !== "disabled";
+        if (!enabled) {
+          // The integration marks the sensor unavailable while the alarm is off.
+          setState(map.nextAlarm, "unavailable");
+          return;
+        }
+        const raw = stateOf(map.alarmTime);
+        const match = /^(\d{1,2}):(\d{2})/.exec(raw ?? "");
+        if (!match) {
+          setState(map.nextAlarm, "unknown");
+          return;
+        }
+        const days = [];
+        for (let i = 0; i < 7; i += 1) {
+          if (stateOf(map["day" + i]) === "on") days.push(i);
+        }
+        const next = nextOccurrence(Number(match[1]), Number(match[2]), days);
+        setState(map.nextAlarm, next ? next.toISOString() : "unknown");
+      }
+
+      function setStatus(deviceId, status) {
+        const map = store.byDevice[deviceId];
+        if (map.status) setState(map.status, status);
+      }
+
+      function addDevice(spec) {
+        const id = spec.id;
+        store.devices[id] = { id, name: spec.name, name_by_user: spec.name_by_user ?? null };
+        const map = {};
+        store.byDevice[id] = map;
+
+        const omit = new Set(spec.omit ?? []);
+        const overrides = spec.states ?? {};
+
+        const add = (role, state, attributes = {}) => {
+          if (omit.has(role)) return;
+          const [domain, key] = ROLES[role];
+          const entityId = domain + "." + spec.slug + "_" + key;
+          map[role] = entityId;
+          store.entities[entityId] = {
+            entity_id: entityId,
+            device_id: id,
+            platform: DOMAIN,
+            translation_key: key,
+            has_entity_name: true,
+          };
+          store.states[entityId] = {
+            entity_id: entityId,
+            state: String(overrides[role] ?? state),
+            last_changed: isoNow(),
+            last_updated: isoNow(),
+            attributes,
+          };
+        };
+
+        add("enabled", spec.enabled === false ? "off" : "on");
+        WEEKDAYS.forEach((_day, index) => {
+          const active = (spec.days ?? [0, 1, 2, 3, 4]).includes(index);
+          add("day" + index, active ? "on" : "off");
+        });
+        add("alarmTime", spec.time ?? "06:30:00");
+        add("snoozeDuration", spec.snooze ?? 9, NUMBER_ATTRS.snoozeDuration);
+        add("preOffset", spec.pre ?? 15, NUMBER_ATTRS.preOffset);
+        add("postOffset", spec.post ?? 20, NUMBER_ATTRS.postOffset);
+        add("autoDismiss", spec.auto ?? 30, NUMBER_ATTRS.autoDismiss);
+        add("ringing", spec.status === "ringing" ? "on" : "off");
+        add("snoozeActive", spec.status === "snoozed" ? "on" : "off");
+        add("nextAlarm", "unknown", { device_class: "timestamp" });
+        add("status", spec.status ?? (spec.enabled === false ? "disabled" : "armed"));
+        add("snoozeUntil", "unknown", { device_class: "timestamp" });
+        add("snoozeButton", "unknown");
+        add("dismissButton", "unknown");
+
+        if (spec.status === "snoozed" && map.snoozeUntil) {
+          const until = new Date(NOW() + (spec.snoozeInMinutes ?? 7) * 60000);
+          setState(map.snoozeUntil, until.toISOString());
+        }
+        if (spec.status === "ringing" && map.ringing) {
+          // "seit 8 Min." comes from last_changed, not from a state value.
+          store.states[map.ringing] = {
+            ...store.states[map.ringing],
+            last_changed: new Date(NOW() - (spec.ringingForMinutes ?? 8) * 60000).toISOString(),
+          };
+        }
+        recompute(id);
+        // Applied after recompute so a case can pin an empty or broken value.
+        for (const [role, value] of Object.entries(spec.after ?? {})) {
+          if (map[role]) setState(map[role], value);
+        }
+        return id;
+      }
+
+      /** A device row with no alarm_clocks entities at all. */
+      function addBareDevice(id, name) {
+        store.devices[id] = { id, name, name_by_user: null };
+        store.byDevice[id] = {};
+        return id;
+      }
+
+      const logEntries = [];
+      const logList = document.getElementById("log-list");
+      const logEmpty = document.getElementById("log-empty");
+
+      function log(line) {
+        logEntries.push(line);
+        logEmpty.hidden = true;
+        const item = document.createElement("li");
+        item.textContent = line;
+        logList.appendChild(item);
+        logList.parentElement.scrollTop = logList.parentElement.scrollHeight;
+      }
+
+      function callService(domain, service, data = {}, target = {}) {
+        store.calls.push([domain, service, data, target]);
+        log(
+          domain +
+            "." +
+            service +
+            " " +
+            JSON.stringify(data) +
+            " -> " +
+            JSON.stringify(target),
+        );
+
+        const entityId = Array.isArray(target.entity_id) ? target.entity_id[0] : target.entity_id;
+        const deviceId = Array.isArray(target.device_id) ? target.device_id[0] : target.device_id;
+
+        if (domain === "switch" && entityId) {
+          const current = stateOf(entityId);
+          const next =
+            service === "toggle" ? (current === "on" ? "off" : "on") : service === "turn_on" ? "on" : "off";
+          setState(entityId, next);
+          const owner = store.entities[entityId]?.device_id;
+          const role = Object.keys(store.byDevice[owner] ?? {}).find(
+            (key) => store.byDevice[owner][key] === entityId,
+          );
+          if (role === "enabled") {
+            const status = stateOf(store.byDevice[owner].status);
+            if (status !== "ringing" && status !== "snoozed") {
+              setStatus(owner, next === "on" ? "armed" : "disabled");
+            }
+          }
+          recompute(owner);
+        } else if (domain === "number" && service === "set_value" && entityId) {
+          setState(entityId, data.value);
+        } else if (domain === "time" && service === "set_value" && entityId) {
+          setState(entityId, data.time);
+          recompute(store.entities[entityId]?.device_id);
+        } else if (domain === DOMAIN && deviceId) {
+          const map = store.byDevice[deviceId] ?? {};
+          const status = stateOf(map.status);
+          if (service === "snooze" && (status === "ringing" || status === "snoozed")) {
+            const minutes = Number(stateOf(map.snoozeDuration) ?? 9);
+            const until = new Date(NOW() + minutes * 60000);
+            if (map.ringing) setState(map.ringing, "off");
+            if (map.snoozeActive) setState(map.snoozeActive, "on");
+            if (map.snoozeUntil) setState(map.snoozeUntil, until.toISOString());
+            setStatus(deviceId, "snoozed");
+            recompute(deviceId);
+          } else if (service === "dismiss") {
+            if (map.ringing) setState(map.ringing, "off");
+            if (map.snoozeActive) setState(map.snoozeActive, "off");
+            if (map.snoozeUntil) setState(map.snoozeUntil, "unknown");
+            const enabled = map.enabled ? stateOf(map.enabled) === "on" : true;
+            setStatus(deviceId, enabled ? "armed" : "disabled");
+            recompute(deviceId);
+          } else if (service === "trigger_alarm") {
+            if (map.ringing) setState(map.ringing, "on");
+            if (map.snoozeActive) setState(map.snoozeActive, "off");
+            setStatus(deviceId, "ringing");
+          }
+        }
+
+        store.version += 1;
+        pushHass();
+        return Promise.resolve();
+      }
+
+      const localeCache = new Map();
+      function localeFor(language) {
+        if (!localeCache.has(language)) {
+          localeCache.set(language, { language, number_format: "language", time_format: "language" });
+        }
+        return localeCache.get(language);
+      }
+
+      /** A `hass` snapshot. New wrapper, stable registries: what HA hands out. */
+      function makeHass(options = {}) {
+        return {
+          states: options.states ?? store.states,
+          entities: options.entities ?? store.entities,
+          devices: options.devices ?? store.devices,
+          locale: localeFor(options.language ?? LANG),
+          language: options.language ?? LANG,
+          callService,
+        };
+      }
+
+      // ---------------------------------------------------------------------
+      // Fixture. Not only the happy path: every variant the cards branch on,
+      // every value type they render, the empty states, the broken states.
+      // ---------------------------------------------------------------------
+
+      const MAIN = addDevice({ id: "d-main", slug: "wecker_schlafzimmer", name: "Schlafzimmer" });
+      const RINGING = addDevice({
+        id: "d-ring",
+        slug: "wecker_gaestezimmer",
+        name: "Gästezimmer",
+        time: "06:00:00",
+        status: "ringing",
+        ringingForMinutes: 8,
+      });
+      const SNOOZED = addDevice({
+        id: "d-snooze",
+        slug: "wecker_kinderzimmer",
+        name: "Kinderzimmer",
+        time: "07:15:00",
+        status: "snoozed",
+        snoozeInMinutes: 7,
+      });
+      const PRE = addDevice({
+        id: "d-pre",
+        slug: "wecker_buero",
+        name: "Büro",
+        time: "05:45:00",
+        status: "pre_active",
+      });
+      const POST = addDevice({
+        id: "d-post",
+        slug: "wecker_kueche",
+        name: "Küche",
+        time: "06:20:00",
+        status: "post_pending",
+      });
+      const OFF = addDevice({
+        id: "d-off",
+        slug: "wecker_ferienhaus",
+        name: "Ferienhaus",
+        enabled: false,
+        time: "08:00:00",
+      });
+      const ONESHOT = addDevice({
+        id: "d-oneshot",
+        slug: "wecker_werkstatt",
+        name: "Werkstatt",
+        time: "04:30:00",
+        days: [],
+      });
+      // Empty state: the time entity has no value, so the hero has nothing to show.
+      const NO_TIME = addDevice({
+        id: "d-notime",
+        slug: "wecker_dachboden",
+        name: "Dachboden",
+        after: { alarmTime: "unknown", nextAlarm: "unknown" },
+      });
+      // The status sensor is unavailable: the card reconstructs the state.
+      const DERIVED = addDevice({
+        id: "d-derived",
+        slug: "wecker_keller",
+        name: "Keller",
+        time: "06:45:00",
+        after: { status: "unavailable" },
+      });
+      // Half the entities are missing, as they would be when disabled in the
+      // entity registry: no toggle, no weekday entities, no settings.
+      const PARTIAL = addDevice({
+        id: "d-partial",
+        slug: "wecker_flur",
+        name: "Flur",
+        time: "09:00:00",
+        omit: [
+          "enabled",
+          "snoozeDuration",
+          "preOffset",
+          "postOffset",
+          "autoDismiss",
+          "snoozeButton",
+          "dismissButton",
+          ...WEEKDAYS.map((_d, i) => "day" + i),
+        ],
+      });
+      // Two weekday switches are unavailable: those buttons must be disabled.
+      const BROKEN_DAYS = addDevice({
+        id: "d-brokendays",
+        slug: "wecker_waschkueche",
+        name: "Waschküche",
+        time: "10:05:00",
+        after: { day2: "unavailable", day3: "unavailable" },
+      });
+      // Every phase switched off. Ringing, but snoozing is disabled by the zero.
+      const ZEROS = addDevice({
+        id: "d-zeros",
+        slug: "wecker_gartenhaus",
+        name: "Gartenhaus",
+        time: "06:00:00",
+        status: "ringing",
+        snooze: 0,
+        pre: 0,
+        post: 0,
+        auto: 0,
+        ringingForMinutes: 61,
+      });
+      // Every number at its maximum: the plus buttons must be disabled.
+      const MAXED = addDevice({
+        id: "d-max",
+        slug: "wecker_sauna",
+        name: "Sauna",
+        time: "23:55:00",
+        snooze: 60,
+        pre: 120,
+        post: 120,
+        auto: 180,
+        days: [5, 6],
+      });
+      const LONG_NAME = addDevice({
+        id: "d-long",
+        slug: "wecker_dachgeschoss",
+        name: "Schlafzimmer Dachgeschoss hinten links – Weckruf für die ganze Familie",
+        time: "06:35:00",
+      });
+      // In the device registry, but without a single alarm_clocks entity.
+      const NO_ENTITIES = addBareDevice("d-bare", "Sicherungskasten");
+
+      const EMPTY_HASS = { entities: {}, devices: {}, states: {} };
+      const OTHER_LANG = LANG === "de" ? "en" : "de";
+
+      const ALARM = "alarm-clocks-card";
+      const LIST = "alarm-clocks-list-card";
+      const base = (device, extra = {}) => ({
+        type: "custom:alarm-clocks-card",
+        device_id: device,
+        ...extra,
+      });
+
+      const SECTIONS = [
+        {
+          title: "Status",
+          slug: "status",
+          prose: "One card per state of sensor.<alarm>_state, plus the reconstruction the card falls back to when that sensor is gone.",
+          cases: [
+            { label: "armed", tag: ALARM, config: base(MAIN) },
+            { label: "ringing", tag: ALARM, config: base(RINGING), note: "snooze + dismiss, ringing duration from last_changed" },
+            { label: "snoozed", tag: ALARM, config: base(SNOOZED) },
+            { label: "pre_active", tag: ALARM, config: base(PRE) },
+            { label: "post_pending", tag: ALARM, config: base(POST) },
+            { label: "disabled", tag: ALARM, config: base(OFF), note: "next_alarm is unavailable while off" },
+            { label: "status sensor unavailable", tag: ALARM, config: base(DERIVED), note: "state derived from the switch" },
+          ],
+        },
+        {
+          title: "Configuration",
+          slug: "config",
+          prose: "Every option the card editor can set.",
+          cases: [
+            { label: "defaults", tag: ALARM, config: base(MAIN) },
+            { label: "show_days: false", tag: ALARM, config: base(MAIN, { show_days: false }) },
+            { label: "show_next_alarm: false", tag: ALARM, config: base(MAIN, { show_next_alarm: false }) },
+            { label: "show_settings: false", tag: ALARM, config: base(MAIN, { show_settings: false }) },
+            { label: "settings_expanded: true", tag: ALARM, config: base(MAIN, { settings_expanded: true }) },
+            { label: "show_test_button: true", tag: ALARM, config: base(MAIN, { show_test_button: true }) },
+            { label: "show_test_button while ringing", tag: ALARM, config: base(RINGING, { show_test_button: true }), note: "test is replaced by dismiss" },
+            { label: "minute_step: 1", tag: ALARM, config: base(MAIN, { minute_step: 1 }) },
+            { label: "minute_step: 15", tag: ALARM, config: base(MAIN, { minute_step: 15 }) },
+            { label: "name override", tag: ALARM, config: base(MAIN, { name: "Wochentagswecker" }) },
+            { label: "language: " + OTHER_LANG, tag: ALARM, config: base(RINGING), hass: { language: OTHER_LANG } },
+          ],
+        },
+        {
+          title: "Empty, missing and extreme values",
+          slug: "empty",
+          prose: "No value set, value unknown, entity gone, and both ends of every number range.",
+          cases: [
+            { label: "no alarm time", tag: ALARM, config: base(NO_TIME), note: "time entity unknown" },
+            { label: "one-shot", tag: ALARM, config: base(ONESHOT), note: "no weekday active" },
+            { label: "entities missing", tag: ALARM, config: base(PARTIAL, { settings_expanded: true }), note: "no switch, no weekdays, no numbers" },
+            { label: "weekdays unavailable", tag: ALARM, config: base(BROKEN_DAYS), note: "Wed + Thu unavailable" },
+            { label: "every phase off", tag: ALARM, config: base(ZEROS, { settings_expanded: true }), note: "ringing, but snooze is 0 -> no snooze button" },
+            { label: "numbers at maximum", tag: ALARM, config: base(MAXED, { settings_expanded: true }) },
+            { label: "long device name", tag: ALARM, config: base(LONG_NAME) },
+          ],
+        },
+        {
+          title: "Errors",
+          slug: "errors",
+          prose: "Every branch that renders a message instead of a card.",
+          cases: [
+            { label: "no device configured, none exist", tag: ALARM, config: { type: "custom:alarm-clocks-card" }, hass: EMPTY_HASS },
+            { label: "no device configured, many exist", tag: ALARM, config: { type: "custom:alarm-clocks-card" } },
+            { label: "device_id does not exist", tag: ALARM, config: base("d-gone") },
+            { label: "device without entities", tag: ALARM, config: base(NO_ENTITIES) },
+            { label: "entity: points at a device", tag: ALARM, config: { type: "custom:alarm-clocks-card", entity: "switch.wecker_kinderzimmer_enabled" }, note: "config by entity instead of device" },
+            { label: "entity: unknown id", tag: ALARM, config: { type: "custom:alarm-clocks-card", entity: "switch.does_not_exist" } },
+          ],
+        },
+        {
+          title: "List card",
+          slug: "list",
+          prose: "The same states again in the compact list.",
+          cases: [
+            { label: "all alarms", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Wecker" }, width: 460 },
+            { label: "subset", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: [RINGING, SNOOZED, OFF] } },
+            { label: "hide_disabled: true", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: [MAIN, OFF], hide_disabled: true }, note: "Ferienhaus is filtered out" },
+            { label: "show_next_alarm: false", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: [MAIN, SNOOZED], show_next_alarm: false } },
+            { label: "single alarm, no title", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: [LONG_NAME] } },
+            { label: "no alarms", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: ["d-gone"] } },
+            { label: "no alarms at all", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Wecker" }, hass: EMPTY_HASS },
+          ],
+        },
+        {
+          title: "Editors",
+          slug: "editors",
+          prose: "The config editors, wired to the card underneath: a change here calls setConfig on the card, exactly as the Lovelace editor does.",
+          cases: [
+            { label: "alarm card editor", editor: ALARM, config: base(MAIN, { show_test_button: true }), width: 460 },
+            { label: "list card editor", editor: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Wecker", devices: [MAIN, RINGING] }, width: 460 },
+          ],
+        },
+        {
+          title: "Far too narrow a column",
+          slug: "narrow",
+          prose: "330px trips the 340px media query, 260px also trips the card's own ResizeObserver at 320px, which switches the weekday labels to their narrow form.",
+          narrow: true,
+          cases: [
+            { label: "armed @330", tag: ALARM, config: base(MAIN), width: 330 },
+            { label: "armed @260", tag: ALARM, config: base(MAIN), width: 260 },
+            { label: "ringing @260", tag: ALARM, config: base(RINGING), width: 260 },
+            { label: "settings open @260", tag: ALARM, config: base(MAXED, { settings_expanded: true }), width: 260 },
+            { label: "long name @260", tag: ALARM, config: base(LONG_NAME), width: 260 },
+            { label: "test button @260", tag: ALARM, config: base(MAIN, { show_test_button: true }), width: 260 },
+            { label: "list @260", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Wecker", devices: [MAIN, RINGING, SNOOZED] }, width: 260 },
+          ],
+        },
+      ];
+
+      // ---------------------------------------------------------------------
+      // Mount
+      // ---------------------------------------------------------------------
+
+      const mounted = [];
+
+      function pushHass() {
+        for (const entry of mounted) {
+          entry.el.hass = makeHass(entry.hass);
+        }
+      }
+
+      await import("../custom_components/alarm_clocks/frontend/alarm-clocks-card.js");
+
+      const AlarmCardClass = customElements.get(ALARM);
+      const ListCardClass = customElements.get(LIST);
+
+      function mountCard(tag, config, hassOptions) {
+        const el = document.createElement(tag);
+        el.setConfig(config);
+        el.hass = makeHass(hassOptions);
+        mounted.push({ el, hass: hassOptions });
+        return el;
+      }
+
+      function renderError(message) {
+        const box = document.createElement("pre");
+        box.style.cssText =
+          "margin:0;padding:12px;border:1px solid var(--error-color);border-radius:8px;" +
+          "color:var(--error-color);white-space:pre-wrap;font-size:12px;";
+        box.textContent = message;
+        return box;
+      }
+
+      const container = document.getElementById("cases");
+
+      for (const section of SECTIONS) {
+        if (ONLY && !ONLY.has(section.slug)) continue;
+        const heading = document.createElement("h2");
+        heading.textContent = section.title;
+        const prose = document.createElement("p");
+        prose.className = "prose";
+        prose.textContent = section.prose;
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        if (section.narrow) {
+          heading.setAttribute("data-narrow-section", "");
+          prose.setAttribute("data-narrow-section", "");
+          grid.setAttribute("data-narrow-section", "");
+        }
+        container.append(heading, prose, grid);
+
+        for (const spec of section.cases) {
+          const specimen = document.createElement("div");
+          specimen.className = "specimen";
+          // A gallery run flattens every column to one width, so the same URL
+          // gives the same image. An explicitly requested section keeps its own
+          // widths, which is the only way to screenshot the narrow cases.
+          if (spec.width && (!GALLERY || ONLY)) {
+            specimen.style.setProperty("--col", spec.width + "px");
+          }
+          if (spec.width && spec.width < 340) specimen.setAttribute("data-ruler", "");
+
+          const label = document.createElement("span");
+          label.className = "label";
+          label.textContent = spec.label;
+          specimen.appendChild(label);
+
+          if (spec.note) {
+            const note = document.createElement("span");
+            note.className = "note";
+            note.textContent = spec.note;
+            specimen.appendChild(note);
+          }
+
+          const mount = document.createElement("div");
+          mount.className = "mount";
+          specimen.appendChild(mount);
+          grid.appendChild(specimen);
+
+          try {
+            if (spec.editor) {
+              const card = mountCard(spec.editor, { ...spec.config }, spec.hass);
+              const CardClass = spec.editor === ALARM ? AlarmCardClass : ListCardClass;
+              const editor = await CardClass.getConfigElement();
+              editor.hass = makeHass(spec.hass);
+              editor.setConfig({ ...spec.config });
+              let current = { ...spec.config };
+              editor.addEventListener("config-changed", (event) => {
+                current = { ...event.detail.config };
+                log("config-changed " + JSON.stringify(current));
+                card.setConfig(current);
+                editor.setConfig(current);
+                card.hass = makeHass(spec.hass);
+              });
+              const wrap = document.createElement("div");
+              wrap.style.cssText = "display:flex;flex-direction:column;gap:12px;";
+              wrap.append(editor, card);
+              mount.appendChild(wrap);
+            } else {
+              mount.appendChild(mountCard(spec.tag, spec.config, spec.hass));
+            }
+          } catch (error) {
+            mount.appendChild(renderError(String(error && error.stack ? error.stack : error)));
+          }
+        }
+      }
+
+      // Host events the cards fire and Home Assistant answers.
+      document.addEventListener("hass-more-info", (event) => {
+        log("hass-more-info " + (event.detail?.entityId ?? "?"));
+      });
+      window.addEventListener("error", (event) => log("ERROR " + event.message));
+      window.addEventListener("unhandledrejection", (event) => log("REJECTED " + event.reason));
+
+      // Toolbar
+      const toolbar = document.getElementById("toolbar");
+      const link = (text, changes, active) => {
+        const next = new URLSearchParams(location.search);
+        for (const [key, value] of Object.entries(changes)) {
+          if (value === null) next.delete(key);
+          else next.set(key, value);
+        }
+        const a = document.createElement("a");
+        a.href = "?" + next.toString();
+        a.textContent = text;
+        if (active) a.setAttribute("data-active", "");
+        toolbar.appendChild(a);
+      };
+      link("light", { theme: "light" }, THEME === "light");
+      link("dark", { theme: "dark" }, THEME === "dark");
+      link("de", { lang: "de" }, LANG === "de");
+      link("en", { lang: "en" }, LANG === "en");
+      link("gallery 380", { gallery: "380" }, GALLERY === 380);
+      link("gallery off", { gallery: null }, !GALLERY);
+      link("all sections", { section: null }, !ONLY);
+      for (const section of SECTIONS) {
+        link(section.slug, { section: section.slug }, ONLY?.has(section.slug) === true);
+      }
+
+      /** Handle for measuring from the console or from a driver. */
+      window.__harness = {
+        store,
+        mounted,
+        calls: store.calls,
+        log: logEntries,
+        state: (entityId) => store.states[entityId],
+        push: pushHass,
+        ready: true,
+      };
+    </script>
+  </body>
+</html>

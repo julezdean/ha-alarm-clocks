@@ -194,6 +194,92 @@ To test against a running instance, copy the built file to
 `custom_components/alarm_clocks/frontend/` on that instance and restart Home
 Assistant.
 
+## Preview harness
+
+`preview.html` renders both cards, all their components and every state they
+can be in, without Home Assistant. Development only: it is not part of the
+release, and it adds no dependency.
+
+```bash
+npm run build       # the harness loads the built bundle, not the sources
+npm run preview     # http://localhost:8099/card/preview.html
+```
+
+It has to be served over HTTP, from the repository root, because it is an ES
+module and because it loads
+`custom_components/alarm_clocks/frontend/alarm-clocks-card.js` — the copy that
+actually ships. What the page shows is what a user gets.
+
+### What is faked, and what is not
+
+Not faked: the cards, their components, their styles, their discovery, their
+model, their formatting. That is the shipped bundle, unmodified.
+
+Faked, and each marked `FAKE` in the file:
+
+1. **`ha-card`, `ha-icon`, `ha-form`** — the Home Assistant components the
+   cards use but do not own. `ha-card` is the real one's background, radius,
+   border and optional header. `ha-icon` keeps the 24×24 viewBox, the
+   `--mdc-icon-size` box and the `currentColor` fill, so size, alignment and
+   colour behave correctly, but several of the glyphs are drawn by hand and do
+   not match the real MDI artwork. `ha-form` renders one plain control per
+   schema entry instead of the Home Assistant selectors.
+2. **`hass`, with a small backend behind it.** A service call is not logged and
+   dropped: it changes state, replaces the state objects the way Home Assistant
+   replaces them, and pushes a new `hass` into every mounted card. Toggling a
+   weekday recomputes the next alarm, snoozing sets `snooze_until` and moves
+   the status, dismissing puts it back. So a click runs the whole path —
+   event, service, state, re-render — including the cards' own "has anything I
+   show changed?" check. The scheduler is the Python one's rule without its
+   DST handling.
+3. **Theme variables**, at the values of the built-in Light and Dark themes. A
+   user theme can set them to anything, which is the point of the cards
+   reading them. Home Assistant's Roboto is not loaded either, so text is not
+   pixel-identical to a real dashboard.
+
+### URL parameters
+
+| Parameter | Effect |
+| --- | --- |
+| `?theme=light\|dark` | theme, default light |
+| `?lang=de\|en` | language, default de |
+| `?gallery=<px>` | one fixed column width, prose and the narrow-column section hidden, clock frozen |
+| `?section=<slug,…>` | only these sections, keeping their own column widths: `status`, `config`, `empty`, `errors`, `list`, `editors`, `narrow` |
+| `?now=<iso>` | freeze the clock, e.g. `?now=2026-01-05T21:40:00` |
+
+Relative times ("in 8 h 50 min", "tomorrow, 06:30") come from `Date.now()`, so
+a screenshot is only reproducible with `?gallery` or `?now`. Both freeze the
+clock; `?gallery` defaults to a Monday evening.
+
+### Screenshots
+
+Measure the height first, do not guess it:
+
+```bash
+# in the page: document.body.scrollHeight
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --hide-scrollbars --force-device-scale-factor=2 \
+  --window-size=1200,1615 --screenshot=narrow.png \
+  "http://localhost:8099/card/preview.html?section=narrow&theme=light"
+magick narrow.png -strip -colors 256 narrow.png
+```
+
+The last step cut the example above from 402 kB to 175 kB (56%) with no
+visible loss; a flatter section compresses further.
+
+### Measuring rather than looking
+
+A screenshot says something looks off; a DOM query says by how many pixels and
+why. Useful handles: `window.__harness.store` (devices, entities, states),
+`__harness.state(entityId)`, `__harness.calls` (every service call, in order),
+`__harness.log`, `__harness.mounted`.
+
+One trap: the card switches its weekday labels to the narrow form through a
+`ResizeObserver`, which needs rendered frames. In a hidden or background tab
+`requestAnimationFrame` never runs, the observer never fires, and the narrow
+mode looks broken when it is not. Measure that one in a visible window, or in
+headless Chrome, which does render.
+
 Project layout:
 
 ```text
