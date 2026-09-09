@@ -39,6 +39,8 @@
                              URL gives the same image
         ?section=<slug,...>  render only these sections and keep their own
                              column widths, e.g. ?section=narrow
+        ?labels=off          drop the specimen labels and section headings,
+                             for a picture that goes into the README
         ?now=<iso>           freeze the clock, e.g. 2026-01-05T21:40:00
     -->
 
@@ -150,6 +152,40 @@
 
       body[data-gallery] h2 {
         margin: 24px 0 4px;
+      }
+
+      /* Nothing but the cards: what goes into the README. */
+      body[data-nolabels] {
+        padding: 20px;
+      }
+
+      body[data-nolabels] h1,
+      body[data-nolabels] h2,
+      body[data-nolabels] .prose,
+      body[data-nolabels] .toolbar,
+      body[data-nolabels] .label,
+      body[data-nolabels] .note,
+      body[data-nolabels] #log {
+        display: none !important;
+      }
+
+      /*
+        Cards differ a lot in height, and a flex row leaves a hole under every
+        short one. Column flow packs them, which is what a picture needs; the
+        interactive view keeps the row layout, where the holes carry meaning
+        (one row per group).
+      */
+      body[data-nolabels] .grid {
+        display: block;
+        margin-top: 0;
+        columns: var(--col, 380px);
+        column-gap: 24px;
+      }
+
+      body[data-nolabels] .specimen {
+        width: auto;
+        margin-bottom: 24px;
+        break-inside: avoid;
       }
 
       .prose {
@@ -286,6 +322,7 @@
       const GALLERY = params.has("gallery") ? Number(params.get("gallery")) || 380 : null;
       const THEME = params.get("theme") === "dark" ? "dark" : "light";
       const LANG = params.get("lang") === "en" ? "en" : "de";
+      const LABELS = params.get("labels") !== "off";
       const ONLY = params.get("section")
         ? new Set(params.get("section").split(",").map((s) => s.trim()))
         : null;
@@ -321,6 +358,7 @@
         document.body.dataset.gallery = String(GALLERY);
         document.body.style.setProperty("--col", GALLERY + "px");
       }
+      if (!LABELS) document.body.dataset.nolabels = "";
 
       const NOW = () => Date.now();
 
@@ -343,8 +381,17 @@
             "border-radius:var(--ha-card-border-radius,12px);" +
             "border:1px solid var(--ha-card-border-color,var(--divider-color));" +
             "box-shadow:var(--ha-card-box-shadow,none);color:var(--primary-text-color);}" +
-            ".card-header{display:block;padding:12px 16px 0;font-size:24px;font-weight:400;" +
-            "line-height:1.2;letter-spacing:-0.012em;}" +
+            // Metrics taken from the Home Assistant frontend's own ha-card:
+            // the h1 needs its margin reset and a 48px line box, otherwise the
+            // header sits at a different height than on a dashboard. Not
+            // verified against a running instance.
+            ".card-header{display:block;margin:0;padding:12px 16px 16px;" +
+            "color:var(--ha-card-header-color,var(--primary-text-color));" +
+            "font-size:24px;font-weight:400;line-height:48px;letter-spacing:-0.012em;}" +
+            // Without this the class selector beats the browser's [hidden] rule
+            // and an empty header still takes 44px, which made every alarm card
+            // look taller here than it is on a dashboard.
+            ".card-header[hidden]{display:none;}" +
             "</style><h1 class='card-header' hidden></h1><slot></slot>";
           this._headerEl = this.shadowRoot.querySelector(".card-header");
         }
@@ -864,63 +911,74 @@
       // every value type they render, the empty states, the broken states.
       // ---------------------------------------------------------------------
 
-      const MAIN = addDevice({ id: "d-main", slug: "wecker_schlafzimmer", name: "Schlafzimmer" });
+      const MAIN = addDevice({ id: "d-main", slug: "work", name: "Work" });
+      const WEEKEND = addDevice({
+        id: "d-weekend",
+        slug: "weekend",
+        name: "Weekend",
+        time: "09:00:00",
+        days: [5, 6],
+        snooze: 15,
+        pre: 20,
+        post: 30,
+        auto: 60,
+      });
       const RINGING = addDevice({
         id: "d-ring",
-        slug: "wecker_gaestezimmer",
-        name: "Gästezimmer",
-        time: "06:00:00",
+        slug: "late_shift",
+        name: "Late Shift",
+        time: "11:30:00",
         status: "ringing",
         ringingForMinutes: 8,
       });
       const SNOOZED = addDevice({
         id: "d-snooze",
-        slug: "wecker_kinderzimmer",
-        name: "Kinderzimmer",
+        slug: "gym",
+        name: "Gym",
         time: "07:15:00",
         status: "snoozed",
         snoozeInMinutes: 7,
       });
       const PRE = addDevice({
         id: "d-pre",
-        slug: "wecker_buero",
-        name: "Büro",
+        slug: "early_shift",
+        name: "Early Shift",
         time: "05:45:00",
         status: "pre_active",
       });
       const POST = addDevice({
         id: "d-post",
-        slug: "wecker_kueche",
-        name: "Küche",
-        time: "06:20:00",
+        slug: "home_office",
+        name: "Home Office",
+        time: "07:30:00",
         status: "post_pending",
       });
       const OFF = addDevice({
         id: "d-off",
-        slug: "wecker_ferienhaus",
-        name: "Ferienhaus",
+        slug: "vacation",
+        name: "Vacation",
         enabled: false,
         time: "08:00:00",
       });
       const ONESHOT = addDevice({
         id: "d-oneshot",
-        slug: "wecker_werkstatt",
-        name: "Werkstatt",
+        slug: "train",
+        name: "Train to Berlin",
         time: "04:30:00",
         days: [],
       });
       // Empty state: the time entity has no value, so the hero has nothing to show.
       const NO_TIME = addDevice({
         id: "d-notime",
-        slug: "wecker_dachboden",
-        name: "Dachboden",
+        slug: "new_alarm",
+        name: "New alarm",
         after: { alarmTime: "unknown", nextAlarm: "unknown" },
       });
       // The status sensor is unavailable: the card reconstructs the state.
       const DERIVED = addDevice({
         id: "d-derived",
-        slug: "wecker_keller",
-        name: "Keller",
+        slug: "kids",
+        name: "Kids",
         time: "06:45:00",
         after: { status: "unavailable" },
       });
@@ -928,8 +986,8 @@
       // entity registry: no toggle, no weekday entities, no settings.
       const PARTIAL = addDevice({
         id: "d-partial",
-        slug: "wecker_flur",
-        name: "Flur",
+        slug: "spare",
+        name: "Spare",
         time: "09:00:00",
         omit: [
           "enabled",
@@ -945,17 +1003,17 @@
       // Two weekday switches are unavailable: those buttons must be disabled.
       const BROKEN_DAYS = addDevice({
         id: "d-brokendays",
-        slug: "wecker_waschkueche",
-        name: "Waschküche",
-        time: "10:05:00",
+        slug: "swimming",
+        name: "Swimming",
+        time: "06:15:00",
         after: { day2: "unavailable", day3: "unavailable" },
       });
       // Every phase switched off. Ringing, but snoozing is disabled by the zero.
       const ZEROS = addDevice({
         id: "d-zeros",
-        slug: "wecker_gartenhaus",
-        name: "Gartenhaus",
-        time: "06:00:00",
+        slug: "night_shift",
+        name: "Night Shift",
+        time: "23:55:00",
         status: "ringing",
         snooze: 0,
         pre: 0,
@@ -966,9 +1024,9 @@
       // Every number at its maximum: the plus buttons must be disabled.
       const MAXED = addDevice({
         id: "d-max",
-        slug: "wecker_sauna",
-        name: "Sauna",
-        time: "23:55:00",
+        slug: "sunday",
+        name: "Sunday lie-in",
+        time: "10:00:00",
         snooze: 60,
         pre: 120,
         post: 120,
@@ -977,12 +1035,12 @@
       });
       const LONG_NAME = addDevice({
         id: "d-long",
-        slug: "wecker_dachgeschoss",
-        name: "Schlafzimmer Dachgeschoss hinten links – Weckruf für die ganze Familie",
+        slug: "second_plant",
+        name: "Early shift at the second plant, including the drive and the coffee",
         time: "06:35:00",
       });
       // In the device registry, but without a single alarm_clocks entity.
-      const NO_ENTITIES = addBareDevice("d-bare", "Sicherungskasten");
+      const NO_ENTITIES = addBareDevice("d-bare", "Old alarm");
 
       const EMPTY_HASS = { entities: {}, devices: {}, states: {} };
       const OTHER_LANG = LANG === "de" ? "en" : "de";
@@ -1024,7 +1082,7 @@
             { label: "show_test_button while ringing", tag: ALARM, config: base(RINGING, { show_test_button: true }), note: "test is replaced by dismiss" },
             { label: "minute_step: 1", tag: ALARM, config: base(MAIN, { minute_step: 1 }) },
             { label: "minute_step: 15", tag: ALARM, config: base(MAIN, { minute_step: 15 }) },
-            { label: "name override", tag: ALARM, config: base(MAIN, { name: "Wochentagswecker" }) },
+            { label: "name override", tag: ALARM, config: base(MAIN, { name: "Workdays" }) },
             { label: "language: " + OTHER_LANG, tag: ALARM, config: base(RINGING), hass: { language: OTHER_LANG } },
           ],
         },
@@ -1060,13 +1118,13 @@
           slug: "list",
           prose: "The same states again in the compact list.",
           cases: [
-            { label: "all alarms", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Wecker" }, width: 460 },
+            { label: "all alarms", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Alarms" }, width: 460 },
             { label: "subset", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: [RINGING, SNOOZED, OFF] } },
             { label: "hide_disabled: true", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: [MAIN, OFF], hide_disabled: true }, note: "Ferienhaus is filtered out" },
             { label: "show_next_alarm: false", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: [MAIN, SNOOZED], show_next_alarm: false } },
             { label: "single alarm, no title", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: [LONG_NAME] } },
             { label: "no alarms", tag: LIST, config: { type: "custom:alarm-clocks-list-card", devices: ["d-gone"] } },
-            { label: "no alarms at all", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Wecker" }, hass: EMPTY_HASS },
+            { label: "no alarms at all", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Alarms" }, hass: EMPTY_HASS },
           ],
         },
         {
@@ -1075,7 +1133,22 @@
           prose: "The config editors, wired to the card underneath: a change here calls setConfig on the card, exactly as the Lovelace editor does.",
           cases: [
             { label: "alarm card editor", editor: ALARM, config: base(MAIN, { show_test_button: true }), width: 460 },
-            { label: "list card editor", editor: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Wecker", devices: [MAIN, RINGING] }, width: 460 },
+            { label: "list card editor", editor: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Alarms", devices: [MAIN, RINGING] }, width: 460 },
+          ],
+        },
+        {
+          // The selection behind images/screenshot-cards.png in the top-level
+          // README. Kept here rather than clicked together, so the picture can
+          // be rebuilt from one command when the cards change.
+          title: "Showcase",
+          slug: "showcase",
+          prose: "The four alarms and the states worth showing: this is the selection in the README screenshot.",
+          cases: [
+            { label: "list", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Alarms", devices: [MAIN, WEEKEND, RINGING, OFF] }, width: 437 },
+            { label: "armed", tag: ALARM, config: base(MAIN), width: 437 },
+            { label: "ringing", tag: ALARM, config: base(RINGING), width: 437 },
+            { label: "settings open", tag: ALARM, config: base(WEEKEND, { settings_expanded: true }), width: 437 },
+            { label: "switched off", tag: ALARM, config: base(OFF), width: 437 },
           ],
         },
         {
@@ -1090,7 +1163,7 @@
             { label: "settings open @260", tag: ALARM, config: base(MAXED, { settings_expanded: true }), width: 260 },
             { label: "long name @260", tag: ALARM, config: base(LONG_NAME), width: 260 },
             { label: "test button @260", tag: ALARM, config: base(MAIN, { show_test_button: true }), width: 260 },
-            { label: "list @260", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Wecker", devices: [MAIN, RINGING, SNOOZED] }, width: 260 },
+            { label: "list @260", tag: LIST, config: { type: "custom:alarm-clocks-list-card", title: "Alarms", devices: [MAIN, RINGING, SNOOZED] }, width: 260 },
           ],
         },
       ];

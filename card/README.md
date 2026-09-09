@@ -259,13 +259,30 @@ Measure the height first, do not guess it:
 # in the page: document.body.scrollHeight
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --headless=new --hide-scrollbars --force-device-scale-factor=2 \
-  --window-size=1200,1615 --screenshot=narrow.png \
+  --window-size=1200,1531 --screenshot=narrow.png \
   "http://localhost:8099/card/preview.html?section=narrow&theme=light"
 magick narrow.png -strip -colors 256 narrow.png
 ```
 
-The last step cut the example above from 402 kB to 175 kB (56%) with no
+The last step cut the example above from 388 kB to 176 kB (55%) with no
 visible loss; a flatter section compresses further.
+
+`images/screenshot-cards.png` in the top-level README comes from the same
+harness, so it can be redone whenever the cards change. The `showcase` section
+holds that selection, `labels=off` drops the labels and headings, `lang=en`
+matches the language of the README, and the frozen clock keeps the relative
+times stable:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --hide-scrollbars --force-device-scale-factor=2 \
+  --window-size=2321,539 --screenshot=images/screenshot-cards.png \
+  "http://localhost:8099/card/preview.html?section=showcase&theme=dark&labels=off&gallery=437&lang=en&now=2026-01-05T21:40:00"
+```
+
+Run it from the repository root, then compress it as above. The window width
+puts all five cards on one line; 437px columns are deliberate, because between
+roughly 305px and 360px the hero wraps the edit button onto a line of its own.
 
 ### Measuring rather than looking
 
