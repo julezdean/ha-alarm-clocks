@@ -95,9 +95,31 @@ export interface LovelaceGridOptions {
   max_columns?: number;
 }
 
+/**
+ * Per-alarm overrides. Every field falls back to the same-named card option
+ * when unset, so a plain device id (no overrides at all) is also valid in
+ * `devices`.
+ */
+export interface MacaAlarmDeviceConfig {
+  device_id: string;
+  name?: string;
+  show_days?: boolean;
+  show_next_alarm?: boolean;
+  show_settings?: boolean;
+  show_test_button?: boolean;
+  minute_step?: number;
+  expanded?: boolean;
+}
+
 export interface MacaAlarmCardConfig extends LovelaceCardConfig {
   title?: string;
-  devices?: string[];
+  /**
+   * Omitted or empty: every alarm clock found in the registry, sorted by
+   * name, all sharing the card's own options below. A list of entries (plain
+   * device ids or `MacaAlarmDeviceConfig` objects): exactly those alarms, in
+   * that order, each able to override the card's options for itself.
+   */
+  devices?: (string | MacaAlarmDeviceConfig)[];
   hide_disabled?: boolean;
   show_days?: boolean;
   show_next_alarm?: boolean;
@@ -107,9 +129,11 @@ export interface MacaAlarmCardConfig extends LovelaceCardConfig {
   /** Whether a row can be expanded and collapsed by clicking it. Default `true`. */
   expandable?: boolean;
   /**
-   * With `expandable: false`, the fixed state of every row. With
-   * `expandable: true`, the initial state before the first click; only one
-   * row can be expanded at a time.
+   * Default for any alarm that does not set its own `expanded`. With
+   * `expandable: false`, that is the fixed state of the row. With
+   * `expandable: true`, the first alarm (in `devices` order, or sorted by
+   * name when `devices` is empty) that resolves to `true` seeds the
+   * accordion; only one row is expanded at a time after that.
    */
   expanded?: boolean;
 }

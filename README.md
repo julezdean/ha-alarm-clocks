@@ -146,6 +146,12 @@ at all; `expanded` is either the fixed state of every row (`expandable:
 false`) or which row starts open (`expandable: true`, and only one row is
 open at a time — opening another closes the first).
 
+Instead of a plain device ID, an entry in `devices` can be an object that
+overrides any of the above for just that one alarm — a name, its own
+`expanded`, whichever display options it needs. The visual editor's device
+list is built for exactly this: add, remove and expand a row per alarm.
+Details and every field are in [card/README.md](card/README.md).
+
 The card talks to the integration through the services
 `alarm_clocks.snooze`, `alarm_clocks.dismiss` and
 `alarm_clocks.trigger_alarm`, and finds the entities of an alarm clock through

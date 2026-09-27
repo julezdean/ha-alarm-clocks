@@ -17,7 +17,8 @@ the card from source.
 
 - **One card, any number of alarm clocks.** Point it at nothing and it finds
   every alarm clock through the entity registry; point it at one or several
-  device IDs to narrow it down.
+  device IDs to narrow it down, each with its own name and display options if
+  you want.
 - **Collapsible rows.** Each alarm clock is a row that collapses to a compact
   line — icon, name, time, quick actions — or expands to its full detail. One
   row open at a time, or a fixed state for every row, your choice.
@@ -42,24 +43,54 @@ The minimum; everything else is optional:
 type: custom:alarm-clocks-card
 ```
 
-With no `devices`, the card shows every alarm clock it finds. The device
-picker in the visual editor narrows that down, so you rarely have to look up
-an ID by hand.
+With no `devices`, the card shows every alarm clock it finds, sorted by name,
+all sharing the options below. The visual editor's device list builds the
+other form: an explicit entry per alarm, in the order you put them in, each
+able to override any of these options for itself — see
+[Per-alarm overrides](#per-alarm-overrides).
 
 ### Options
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `devices` | list | all | Device IDs of the alarm clocks to show. Empty or omitted means all of them. |
+| `devices` | list | all | Device IDs, or per-alarm override objects (see below). Empty or omitted means every alarm clock, sorted by name. |
 | `title` | string | – | Heading of the card. |
 | `hide_disabled` | boolean | `false` | Hide disabled alarm clocks. |
-| `show_days` | boolean | `true` | Show the weekday row. |
-| `show_next_alarm` | boolean | `true` | Show the remaining time and the next alarm time. |
-| `show_settings` | boolean | `true` | Show the settings row on an expanded alarm. |
-| `show_test_button` | boolean | `false` | Show a button for `alarm_clocks.trigger_alarm`. |
-| `minute_step` | number | `5` | Step width of the minutes on the time stepper. |
+| `show_days` | boolean | `true` | Show the weekday row. Default for every alarm; see below. |
+| `show_next_alarm` | boolean | `true` | Show the remaining time and the next alarm time. Default for every alarm; see below. |
+| `show_settings` | boolean | `true` | Show the settings row on an expanded alarm. Default for every alarm; see below. |
+| `show_test_button` | boolean | `false` | Show a button for `alarm_clocks.trigger_alarm`. Default for every alarm; see below. |
+| `minute_step` | number | `5` | Step width of the minutes on the time stepper. Default for every alarm; see below. |
 | `expandable` | boolean | `true` | Whether a row can be expanded and collapsed by clicking it. |
-| `expanded` | boolean | `false` | With `expandable: false`, the fixed state of every row. With `expandable: true`, which row starts open — rows are sorted by name, so the alphabetically first one seeds; after that, opening one row closes whichever was open before. |
+| `expanded` | boolean | `false` | Default for any alarm that does not set its own `expanded` (see below). With `expandable: false`, that is the fixed state of the row. With `expandable: true`, the first alarm that resolves to `true` — its own `expanded`, or this default — seeds the accordion; only one row is expanded at a time after that. |
+
+### Per-alarm overrides
+
+Instead of a plain device ID, an entry in `devices` can be an object. Every
+field below falls back to the same-named card option above when unset, so a
+mix of plain IDs and override objects in the same list is fine.
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `device_id` | string | Required. The alarm clock this entry is about. |
+| `name` | string | Overrides the displayed name. |
+| `show_days` | boolean | Overrides the card's `show_days` for this alarm. |
+| `show_next_alarm` | boolean | Overrides the card's `show_next_alarm` for this alarm. |
+| `show_settings` | boolean | Overrides the card's `show_settings` for this alarm. |
+| `show_test_button` | boolean | Overrides the card's `show_test_button` for this alarm. |
+| `minute_step` | number | Overrides the card's `minute_step` for this alarm. |
+| `expanded` | boolean | Overrides the card's `expanded` default for this alarm — the way to pick which alarm starts open regardless of name order. |
+
+```yaml
+type: custom:alarm-clocks-card
+title: Alarms
+devices:
+  - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
+    name: Bedroom
+    expanded: true
+  - device_id: 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d
+    show_days: false
+```
 
 ## Examples
 

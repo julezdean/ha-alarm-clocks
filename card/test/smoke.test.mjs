@@ -374,6 +374,56 @@ function check(name, fn) {
   card.remove();
 }
 
+// --- per-device overrides --------------------------------------------------
+{
+  const { hass } = makeHass({
+    devices: [
+      { id: DEVICE, slug: "wecker_1", name: "Zzz Wecker" },
+      { id: DEVICE2, slug: "wecker_2", name: "Aaa Wecker" },
+    ],
+  });
+  const card = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, name: "Bedroom", show_days: false }, { device_id: DEVICE2 }],
+      expanded: true,
+    },
+    hass,
+  );
+  check("name override: shows the configured name instead of the device name", () => {
+    assert.match(visibleText(card), /Bedroom/);
+    assert.doesNotMatch(visibleText(card), /Zzz Wecker/);
+  });
+  check("an explicit list keeps its own order, not sorted by name", () => {
+    const names = deepQueryAll(card.shadowRoot, ".name").map((el) => el.textContent.trim());
+    assert.deepEqual(names.slice(0, 2), ["Bedroom", "Aaa Wecker"]);
+  });
+  check("per-device show_days: false hides only that alarm's weekday row", () => {
+    // Bedroom is first in the list, so card-level expanded: true opens it, not "Aaa Wecker".
+    assert.equal(deepQuery(card.shadowRoot, "alarm-clocks-weekday-picker"), null);
+  });
+  card.remove();
+}
+{
+  const { hass } = makeHass({
+    devices: [
+      { id: DEVICE, slug: "wecker_1", name: "Aaa" },
+      { id: DEVICE2, slug: "wecker_2", name: "Bbb", time: "09:00:00" },
+    ],
+  });
+  const card = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE }, { device_id: DEVICE2, expanded: true }],
+    },
+    hass,
+  );
+  check("a device's own expanded: true opens that row, not the first one in the list", () => {
+    assert.equal(steppedTime(card), "09:00");
+  });
+  card.remove();
+}
+
 // --- expandable: false ----------------------------------------------------------
 {
   const { hass } = makeHass();

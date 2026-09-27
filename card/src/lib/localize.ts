@@ -51,6 +51,7 @@ const de: Resource = {
   "error.no_alarms": "Keine Wecker gefunden.",
 
   "editor.devices": "Wecker (leer = alle)",
+  "editor.name": "Name (optional)",
   "editor.title": "Titel (optional)",
   "editor.show_days": "Wochentage anzeigen",
   "editor.show_next_alarm": "Nächsten Alarm anzeigen",
@@ -60,6 +61,10 @@ const de: Resource = {
   "editor.hide_disabled": "Deaktivierte Wecker ausblenden",
   "editor.expandable": "Auf-/Zuklappen erlauben",
   "editor.expanded": "Zeilen aufgeklappt starten",
+  "editor.device_expanded": "Aufgeklappt starten",
+  "editor.add_device": "Wecker hinzufügen",
+  "editor.remove_device": "Entfernen",
+  "editor.pick_device": "Wecker auswählen",
 };
 
 const en: Resource = {
@@ -111,6 +116,7 @@ const en: Resource = {
   "error.no_alarms": "No alarm clocks found.",
 
   "editor.devices": "Alarms (empty = all)",
+  "editor.name": "Name (optional)",
   "editor.title": "Title (optional)",
   "editor.show_days": "Show weekdays",
   "editor.show_next_alarm": "Show next alarm",
@@ -120,6 +126,10 @@ const en: Resource = {
   "editor.hide_disabled": "Hide disabled alarms",
   "editor.expandable": "Allow collapsing",
   "editor.expanded": "Start rows expanded",
+  "editor.device_expanded": "Start expanded",
+  "editor.add_device": "Add alarm clock",
+  "editor.remove_device": "Remove",
+  "editor.pick_device": "Pick an alarm clock",
 };
 
 const RESOURCES: Record<string, Resource> = { de, en };

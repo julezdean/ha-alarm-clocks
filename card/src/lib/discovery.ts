@@ -1,5 +1,10 @@
 import { ALARM_CLOCKS_DOMAIN, WEEKDAYS } from "../const";
-import type { HomeAssistant } from "../types";
+import type { HomeAssistant, MacaAlarmDeviceConfig } from "../types";
+
+/** A plain device id is shorthand for an override-free entry. */
+export function normalizeDeviceConfig(entry: string | MacaAlarmDeviceConfig): MacaAlarmDeviceConfig {
+  return typeof entry === "string" ? { device_id: entry } : entry;
+}
 
 /**
  * Roles an Alarm Clocks entity can play. The integration sets

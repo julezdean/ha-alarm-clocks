@@ -1095,7 +1095,8 @@
             { label: "collapsed by default", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN] }, note: "expandable: true, expanded: false" },
             { label: "expandable: false, expanded: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN], expandable: false, expanded: false }, note: "no chevron, always the compact row" },
             { label: "expandable: false, expanded: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN], expandable: false, expanded: true }, note: "no chevron, always the full body" },
-            { label: "expanded: true seeds the first row", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, RINGING, OFF], expanded: true }, note: "sorted by name, so Late Shift opens; then it's an accordion" },
+            { label: "expanded: true seeds the first row", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [RINGING, OFF, MAIN], expanded: true }, note: "an explicit list keeps its own order, so Late Shift (listed first) opens; then it's an accordion" },
+            { label: "a device's own expanded: true wins", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, { device_id: OFF, expanded: true }, RINGING] }, note: "Vacation opens; Work and Late Shift have no expanded of their own to fall back on" },
           ],
         },
         {
@@ -1132,6 +1133,7 @@
             { label: "subset", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [RINGING, SNOOZED, OFF] } },
             { label: "hide_disabled: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, OFF], hide_disabled: true }, note: "Vacation is filtered out" },
             { label: "show_next_alarm: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, SNOOZED], show_next_alarm: false } },
+            { label: "per-alarm overrides", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, name: "Bedroom", expanded: true, show_days: false }, RINGING] }, note: "Bedroom: renamed, expanded, no weekdays; Late Shift: untouched defaults" },
             { label: "single alarm, no title", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [LONG_NAME] } },
             { label: "no alarms", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: ["d-gone"] } },
             { label: "no alarms at all", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms" }, hass: EMPTY_HASS },
@@ -1153,8 +1155,8 @@
           slug: "showcase",
           prose: "The same card, collapsed and with a row expanded: this is the selection in the README screenshot.",
           cases: [
-            { label: "collapsed", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [MAIN, WEEKEND, RINGING, OFF] }, width: 437 },
-            { label: "ringing, expanded", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [MAIN, RINGING, WEEKEND, OFF], expanded: true }, note: "settings are shown directly, not collapsible", width: 437 },
+            { label: "collapsed", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [RINGING, MAIN, WEEKEND, OFF] }, width: 437 },
+            { label: "ringing, expanded", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [RINGING, MAIN, WEEKEND, OFF], expanded: true }, note: "an explicit list keeps its order, so Late Shift (listed first) is the one expanded: true opens; settings are shown directly, not collapsible", width: 437 },
           ],
         },
         {
