@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
+import { DEVICE_DEFAULTS, type DeviceOptionKey } from "../cards/alarm-clocks-card";
 import { ALARM_CARD_EDITOR_TAG, ALARM_CLOCKS_DOMAIN } from "../const";
 import { fireEvent } from "../lib/actions";
 import { normalizeDeviceConfig } from "../lib/discovery";
@@ -15,8 +16,29 @@ interface FormSchemaItem {
   schema?: FormSchemaItem[];
 }
 
-/** Everything left at the card level: just the heading above the alarm list. */
-const CARD_SCHEMA: FormSchemaItem[] = [{ name: "title", selector: { text: {} } }];
+const DEVICE_OPTION_KEYS = Object.keys(DEVICE_DEFAULTS) as DeviceOptionKey[];
+
+/** The card-wide defaults: title plus every option, as the fallback for any alarm. */
+const CARD_SCHEMA: FormSchemaItem[] = [
+  { name: "title", selector: { text: {} } },
+  {
+    name: "minute_step",
+    selector: { number: { min: 1, max: 30, step: 1, mode: "box", unit_of_measurement: "min" } },
+  },
+  {
+    name: "",
+    type: "grid",
+    schema: [
+      { name: "expandable", selector: { boolean: {} } },
+      { name: "expanded", selector: { boolean: {} } },
+      { name: "hide_disabled", selector: { boolean: {} } },
+      { name: "show_days", selector: { boolean: {} } },
+      { name: "show_next_alarm", selector: { boolean: {} } },
+      { name: "show_settings", selector: { boolean: {} } },
+      { name: "show_test_button", selector: { boolean: {} } },
+    ],
+  },
+];
 
 /** A single-field form: just the device picker, reused for the "add" slot and the detail page. */
 const PICKER_SCHEMA: FormSchemaItem[] = [
@@ -44,6 +66,14 @@ const DEVICE_SCHEMA: FormSchemaItem[] = [
     ],
   },
 ];
+
+/** The one key in `next` whose value differs from `previous`; forms change one field at a time. */
+function firstChangedKey(
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): string | undefined {
+  return Object.keys(next).find((key) => next[key] !== previous[key]);
+}
 
 @customElement(ALARM_CARD_EDITOR_TAG)
 export class MacaAlarmCardEditor extends LitElement {
@@ -73,7 +103,7 @@ export class MacaAlarmCardEditor extends LitElement {
     return html`
       <ha-form
         .hass=${this.hass}
-        .data=${this._config}
+        .data=${this._resolvedCardData()}
         .schema=${CARD_SCHEMA}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
@@ -95,6 +125,27 @@ export class MacaAlarmCardEditor extends LitElement {
         </div>
       </div>
     `;
+  }
+
+  /** The card's own option fields with `DEVICE_DEFAULTS` filled in, so an unset field still
+   *  shows what it actually resolves to instead of looking switched off. */
+  private _resolvedCardData(): MacaAlarmCardConfig {
+    const config = this._config!;
+    const resolved: Record<string, unknown> = { ...config };
+    for (const key of DEVICE_OPTION_KEYS) {
+      resolved[key] = config[key] ?? DEVICE_DEFAULTS[key];
+    }
+    return resolved as MacaAlarmCardConfig;
+  }
+
+  /** Same idea, per alarm: the entry's own value, then the card's, then `DEVICE_DEFAULTS`. */
+  private _resolvedDeviceData(entry: MacaAlarmDeviceConfig): MacaAlarmDeviceConfig {
+    const config = this._config;
+    const resolved: Record<string, unknown> = { ...entry };
+    for (const key of DEVICE_OPTION_KEYS) {
+      resolved[key] = entry[key] ?? config?.[key] ?? DEVICE_DEFAULTS[key];
+    }
+    return resolved as unknown as MacaAlarmDeviceConfig;
   }
 
   /** One row in the list: the resolved name plus edit and remove. */
@@ -134,8 +185,9 @@ export class MacaAlarmCardEditor extends LitElement {
     index: number,
     localize: Localizer,
   ): TemplateResult {
+    const resolved = this._resolvedDeviceData(entry);
     const onChanged = (event: CustomEvent<{ value: MacaAlarmDeviceConfig }>): void =>
-      this._onDeviceChanged(index, event);
+      this._onDeviceChanged(index, resolved, event);
 
     return html`
       <div class="detail-header">
@@ -152,14 +204,14 @@ export class MacaAlarmCardEditor extends LitElement {
       </div>
       <ha-form
         .hass=${this.hass}
-        .data=${entry}
+        .data=${resolved}
         .schema=${PICKER_SCHEMA}
         .computeLabel=${this._computeLabel}
         @value-changed=${onChanged}
       ></ha-form>
       <ha-form
         .hass=${this.hass}
-        .data=${entry}
+        .data=${resolved}
         .schema=${DEVICE_SCHEMA}
         .computeLabel=${this._computeDeviceLabel}
         @value-changed=${onChanged}
@@ -191,9 +243,24 @@ export class MacaAlarmCardEditor extends LitElement {
     return this._computeLabel(schema);
   };
 
+  /**
+   * `.data` shows resolved values so an untouched field never looks switched
+   * off when it is not; only the one field the form actually changed is
+   * written back, so every other field keeps falling back to the card's
+   * default (or `DEVICE_DEFAULTS`) instead of freezing at today's value.
+   */
   private _valueChanged = (event: CustomEvent<{ value: MacaAlarmCardConfig }>): void => {
     event.stopPropagation();
-    fireEvent(this, "config-changed", { config: event.detail.value });
+    if (!this._config) {
+      return;
+    }
+    const key = firstChangedKey(this._resolvedCardData(), event.detail.value);
+    if (!key) {
+      return;
+    }
+    fireEvent(this, "config-changed", {
+      config: { ...this._config, [key]: (event.detail.value as Record<string, unknown>)[key] },
+    });
   };
 
   private _editDevice = (index: number): void => {
@@ -204,10 +271,25 @@ export class MacaAlarmCardEditor extends LitElement {
     this._editingIndex = undefined;
   };
 
-  private _onDeviceChanged(index: number, event: CustomEvent<{ value: MacaAlarmDeviceConfig }>): void {
+  /** Same one-field-at-a-time write as `_valueChanged`, scoped to this one alarm. */
+  private _onDeviceChanged(
+    index: number,
+    resolved: MacaAlarmDeviceConfig,
+    event: CustomEvent<{ value: MacaAlarmDeviceConfig }>,
+  ): void {
     event.stopPropagation();
+    const key = firstChangedKey(
+      resolved as unknown as Record<string, unknown>,
+      event.detail.value as unknown as Record<string, unknown>,
+    );
+    if (!key) {
+      return;
+    }
     const devices = (this._config?.devices ?? []).map(normalizeDeviceConfig);
-    devices[index] = event.detail.value;
+    devices[index] = {
+      ...devices[index],
+      [key]: (event.detail.value as unknown as Record<string, unknown>)[key],
+    };
     this._updateDevices(devices);
   }
 

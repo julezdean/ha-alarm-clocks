@@ -1130,9 +1130,9 @@
           cases: [
             { label: "all alarms", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms" }, width: 460 },
             { label: "subset", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [RINGING, SNOOZED, OFF] } },
-            { label: "hide_disabled: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, hide_disabled: true }, { device_id: OFF, hide_disabled: true }] }, note: "Vacation is filtered out; hide_disabled is per-alarm, set on both here" },
-            { label: "show_next_alarm: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, show_next_alarm: false }, { device_id: SNOOZED, show_next_alarm: false }] } },
-            { label: "per-alarm overrides", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, name: "Bedroom", expanded: true, show_days: false }, RINGING] }, note: "Bedroom: renamed, expanded, no weekdays; Late Shift: untouched defaults" },
+            { label: "hide_disabled: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, OFF], hide_disabled: true }, note: "Vacation is filtered out; a card-wide default" },
+            { label: "show_next_alarm: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, SNOOZED], show_next_alarm: false } },
+            { label: "card default, overridden per alarm", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, name: "Bedroom", expanded: true, show_days: true }, RINGING], show_days: false }, note: "show_days: false is the card default; Bedroom overrides it back to true, Late Shift follows the default" },
             { label: "single alarm, no title", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [LONG_NAME] } },
             { label: "no alarms", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: ["d-gone"] } },
             { label: "no alarms at all", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms" }, hass: EMPTY_HASS },

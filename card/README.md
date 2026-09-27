@@ -47,47 +47,52 @@ type: custom:alarm-clocks-card
 ```
 
 With no `devices`, the card shows every alarm clock it finds, sorted by name,
-each with the defaults below. Every display option lives on the alarm itself,
-not on the card — see [Per-alarm options](#per-alarm-options). The visual
-editor reflects this: past the title, it is a list of alarms, each opened
-through its own pencil icon into a detail page, not an inline form.
+each with the options below. Every option can also be set per alarm, to
+override the card for just that one — see
+[Per-alarm overrides](#per-alarm-overrides). The visual editor reflects this:
+the card-wide options are their own form at the top, and past that is a list
+of alarms, each opened through its own pencil icon into a detail page rather
+than an inline form. A field left blank there is not "off" — it shows what it
+actually resolves to (the alarm's own value, else the card's, else the
+default in the table below), and only the one field you actually change is
+written, so everything else keeps following the card if it later changes.
 
 ### Options
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `title` | string | – | Heading of the card. |
-| `devices` | list | all | Device IDs, or per-alarm option objects (see below). Empty or omitted means every alarm clock, sorted by name. |
-
-### Per-alarm options
-
-Instead of a plain device ID, an entry in `devices` can be an object. Every
-field below is independent per alarm and falls back to the default in this
-table when unset, so a mix of plain IDs and option objects in the same list
-is fine.
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `device_id` | string | – | Required. The alarm clock this entry is about. |
-| `name` | string | device name | Overrides the displayed name. |
-| `hide_disabled` | boolean | `false` | Leave this alarm's row out entirely while it is switched off. |
+| `devices` | list | all | Device IDs, or per-alarm override objects (see below). Empty or omitted means every alarm clock, sorted by name. |
+| `hide_disabled` | boolean | `false` | Leave an alarm's row out entirely while it is switched off. |
 | `show_days` | boolean | `true` | Show the weekday row. |
 | `show_next_alarm` | boolean | `true` | Show the remaining time and the next alarm time. |
-| `show_settings` | boolean | `true` | Show the settings row when this alarm is expanded. |
+| `show_settings` | boolean | `true` | Show the settings row on an expanded alarm. |
 | `show_test_button` | boolean | `false` | Show a button for `alarm_clocks.trigger_alarm`. |
 | `minute_step` | number | `5` | Step width of the minutes on the time stepper. |
-| `expandable` | boolean | `true` | Whether this row can be expanded and collapsed by clicking it. |
-| `expanded` | boolean | `false` | With `expandable: false`, the fixed state of this row. With `expandable: true`, whether this alarm is a candidate to seed the accordion: the first alarm (in `devices` order, or sorted by name when `devices` is empty) that is both expandable and resolves `expanded` to `true` opens; only one row is expanded at a time after that. Alarms can mix fixed and togglable freely in the same card. |
+| `expandable` | boolean | `true` | Whether a row can be expanded and collapsed by clicking it. |
+| `expanded` | boolean | `false` | With `expandable: false`, the fixed state of a row. With `expandable: true`, whether it is a candidate to seed the accordion: the first alarm (in `devices` order, or sorted by name when `devices` is empty) that is both expandable and resolves `expanded` to `true` opens; only one row is expanded at a time after that. Alarms can mix fixed and togglable freely in the same card. |
+
+### Per-alarm overrides
+
+Instead of a plain device ID, an entry in `devices` can be an object with
+`device_id` plus any of the options above, overriding the card's for just
+that one alarm; a mix of plain IDs and override objects in the same list is
+fine. It can also set:
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `name` | string | Overrides the displayed name. |
 
 ```yaml
 type: custom:alarm-clocks-card
 title: Alarms
+show_days: false
 devices:
   - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
     name: Bedroom
     expanded: true
+    show_days: true          # this one still gets its weekday row
   - device_id: 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d
-    show_days: false
 ```
 
 ## Examples
@@ -98,9 +103,9 @@ card:
 ```yaml
 type: custom:alarm-clocks-card
 devices:
-  - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
-    expandable: false
-    expanded: true
+  - 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
+expandable: false
+expanded: true
 ```
 
 Compact, only time and state, never expandable:
@@ -108,23 +113,18 @@ Compact, only time and state, never expandable:
 ```yaml
 type: custom:alarm-clocks-card
 devices:
-  - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
-    expandable: false
-    show_days: false
-    show_settings: false
+  - 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
+expandable: false
+show_days: false
+show_settings: false
 ```
 
-Every alarm clock, collapsed, with a test button for the initial setup — set
-on each one, since it has no card-wide default to fall back to:
+Every alarm clock, collapsed, with a test button for the initial setup:
 
 ```yaml
 type: custom:alarm-clocks-card
 title: Alarm clocks
-devices:
-  - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
-    show_test_button: true
-  - device_id: 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d
-    show_test_button: true
+show_test_button: true
 ```
 
 A named subset, hiding whichever ones are switched off:
@@ -132,11 +132,10 @@ A named subset, hiding whichever ones are switched off:
 ```yaml
 type: custom:alarm-clocks-card
 title: Bedroom
+hide_disabled: true
 devices:
-  - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
-    hide_disabled: true
-  - device_id: 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d
-    hide_disabled: true
+  - 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
+  - 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d
 ```
 
 Two alarm clocks side by side, each its own card so they land in their own
@@ -149,16 +148,16 @@ square: false
 cards:
   - type: custom:alarm-clocks-card
     devices:
-      - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
-        expandable: false
-        expanded: true
-        show_settings: false
+      - 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
+    expandable: false
+    expanded: true
+    show_settings: false
   - type: custom:alarm-clocks-card
     devices:
-      - device_id: 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d
-        expandable: false
-        expanded: true
-        show_settings: false
+      - 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d
+    expandable: false
+    expanded: true
+    show_settings: false
 ```
 
 ## Supported entities

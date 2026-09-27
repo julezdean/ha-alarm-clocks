@@ -96,38 +96,44 @@ export interface LovelaceGridOptions {
 }
 
 /**
- * Every display option lives here, per alarm; unset fields fall back to
- * `DEVICE_DEFAULTS` (see `cards/alarm-clocks-card.ts`), so a plain device id
- * with no overrides at all is also valid in `devices`.
+ * Every display option, shared by the card (as the default for any alarm
+ * that does not set its own) and by a `MacaAlarmDeviceConfig` entry (as an
+ * override for just that one alarm). Unset anywhere falls back to
+ * `DEVICE_DEFAULTS` (see `cards/alarm-clocks-card.ts`).
  */
-export interface MacaAlarmDeviceConfig {
-  device_id: string;
-  name?: string;
+export interface MacaAlarmDisplayOptions {
   hide_disabled?: boolean;
   show_days?: boolean;
   show_next_alarm?: boolean;
   show_settings?: boolean;
   show_test_button?: boolean;
   minute_step?: number;
-  /** Whether this row can be expanded and collapsed by clicking it. Default `true`. */
+  /** Whether a row can be expanded and collapsed by clicking it. Default `true`. */
   expandable?: boolean;
   /**
-   * With `expandable: false`, the fixed state of this row. With
-   * `expandable: true`, whether this row is a candidate to seed the
-   * accordion: the first alarm (in `devices` order, or sorted by name when
-   * `devices` is empty) that is both expandable and resolves `expanded` to
-   * `true` opens; only one row is expanded at a time after that.
+   * With `expandable: false`, the fixed state of a row. With
+   * `expandable: true`, whether a row is a candidate to seed the accordion:
+   * the first alarm (in `devices` order, or sorted by name when `devices` is
+   * empty) that is both expandable and resolves `expanded` to `true` opens;
+   * only one row is expanded at a time after that.
    */
   expanded?: boolean;
 }
 
-export interface MacaAlarmCardConfig extends LovelaceCardConfig {
+/** A plain device id with no overrides at all is also valid in `devices`. */
+export interface MacaAlarmDeviceConfig extends MacaAlarmDisplayOptions {
+  device_id: string;
+  name?: string;
+}
+
+export interface MacaAlarmCardConfig extends LovelaceCardConfig, MacaAlarmDisplayOptions {
   title?: string;
   /**
    * Omitted or empty: every alarm clock found in the registry, sorted by
-   * name, all using `DEVICE_DEFAULTS`. A list of entries (plain device ids or
-   * `MacaAlarmDeviceConfig` objects): exactly those alarms, in that order,
-   * each configured independently.
+   * name. A list of entries (plain device ids or `MacaAlarmDeviceConfig`
+   * objects): exactly those alarms, in that order. Either way, an alarm that
+   * does not set one of the options above uses the card's own, and an alarm
+   * whose card also does not set it uses `DEVICE_DEFAULTS`.
    */
   devices?: (string | MacaAlarmDeviceConfig)[];
 }

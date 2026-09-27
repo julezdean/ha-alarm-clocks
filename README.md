@@ -140,12 +140,13 @@ devices:
 
 With no `devices`, the card shows every alarm clock it finds, sorted by name.
 Every display option — weekdays, settings, the test button, whether a row can
-be expanded at all and which one starts open — lives on the alarm itself, not
-on the card, so a mix of always-open, always-collapsed and togglable alarms
-can sit in one card. The visual editor is built for exactly this: past the
-title, it is a list of alarms, each opened through its own pencil icon into a
-detail page rather than an inline form. Details and every field are in
-[card/README.md](card/README.md).
+be expanded at all and which one starts open — can be set once on the card as
+the default for every alarm, and overridden per alarm, so a mix of
+always-open, always-collapsed and togglable alarms can still sit in one card.
+The visual editor is built for exactly this: the card-wide defaults are their
+own form at the top, and past that is a list of alarms, each opened through
+its own pencil icon into a detail page rather than an inline form. Details and
+every field are in [card/README.md](card/README.md).
 
 The card talks to the integration through the services
 `alarm_clocks.snooze`, `alarm_clocks.dismiss` and

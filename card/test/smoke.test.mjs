@@ -463,6 +463,35 @@ function check(name, fn) {
   });
   card.remove();
 }
+
+// --- card-level defaults, overridden per device --------------------------------
+{
+  const { hass } = makeHass({
+    devices: [
+      { id: DEVICE, slug: "wecker_1", name: "Wecker 1" },
+      { id: DEVICE2, slug: "wecker_2", name: "Wecker 2" },
+    ],
+  });
+  const card = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      show_days: false,
+      devices: [
+        { device_id: DEVICE, expandable: false, expanded: true },
+        { device_id: DEVICE2, expandable: false, expanded: true, show_days: true },
+      ],
+    },
+    hass,
+  );
+  const items = card.shadowRoot.querySelectorAll("alarm-clocks-item");
+  check("card-level show_days: false is the default for alarms that don't override it", () => {
+    assert.equal(items[0].shadowRoot.querySelector("alarm-clocks-weekday-picker"), null);
+  });
+  check("a device's own show_days overrides the card default", () => {
+    assert.notEqual(items[1].shadowRoot.querySelector("alarm-clocks-weekday-picker"), null);
+  });
+  card.remove();
+}
 {
   const { hass } = makeHass({
     devices: [

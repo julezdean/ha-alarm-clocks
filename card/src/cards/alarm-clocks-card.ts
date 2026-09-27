@@ -28,7 +28,7 @@ export const DEVICE_DEFAULTS = {
   expanded: false,
 };
 
-type DeviceOptionKey = keyof typeof DEVICE_DEFAULTS;
+export type DeviceOptionKey = keyof typeof DEVICE_DEFAULTS;
 
 /** Relative times are re-rendered on this interval, nothing else ticks. */
 const TICK_INTERVAL = 30_000;
@@ -146,10 +146,17 @@ export class MacaAlarmCard extends LitElement {
     this._resizeObserver = undefined;
   }
 
-  /** This alarm's own value for `key`, falling back to `DEVICE_DEFAULTS`. */
+  /** This alarm's own value for `key`, then the card's, then `DEVICE_DEFAULTS`. */
   private _resolve<K extends DeviceOptionKey>(view: AlarmView, key: K): (typeof DEVICE_DEFAULTS)[K] {
-    const override = this._deviceConfigs.get(view.deviceId)?.[key];
-    return (override ?? DEVICE_DEFAULTS[key]) as (typeof DEVICE_DEFAULTS)[K];
+    const device = this._deviceConfigs.get(view.deviceId)?.[key];
+    if (device !== undefined) {
+      return device as (typeof DEVICE_DEFAULTS)[K];
+    }
+    const card = this._config?.[key];
+    if (card !== undefined) {
+      return card as (typeof DEVICE_DEFAULTS)[K];
+    }
+    return DEVICE_DEFAULTS[key];
   }
 
   /** Whether `view` is currently rendered expanded, accordion or fixed. */
