@@ -15,8 +15,17 @@ interface FormSchemaItem {
   schema?: FormSchemaItem[];
 }
 
-const CARD_SCHEMA: FormSchemaItem[] = [
-  { name: "title", selector: { text: {} } },
+/** Everything left at the card level: just the heading above the alarm list. */
+const CARD_SCHEMA: FormSchemaItem[] = [{ name: "title", selector: { text: {} } }];
+
+/** A single-field form: just the device picker, reused for the "add" slot and the detail page. */
+const PICKER_SCHEMA: FormSchemaItem[] = [
+  { name: "device_id", selector: { device: { filter: { integration: ALARM_CLOCKS_DOMAIN } } } },
+];
+
+/** The detail page: every option, for this one alarm. */
+const DEVICE_SCHEMA: FormSchemaItem[] = [
+  { name: "name", selector: { text: {} } },
   {
     name: "minute_step",
     selector: { number: { min: 1, max: 30, step: 1, mode: "box", unit_of_measurement: "min" } },
@@ -36,39 +45,14 @@ const CARD_SCHEMA: FormSchemaItem[] = [
   },
 ];
 
-/** A single-field form: just the device picker, reused for every row and the "add" slot. */
-const PICKER_SCHEMA: FormSchemaItem[] = [
-  { name: "device_id", selector: { device: { filter: { integration: ALARM_CLOCKS_DOMAIN } } } },
-];
-
-/** Shown once a row is expanded: every per-device override. */
-const DEVICE_SCHEMA: FormSchemaItem[] = [
-  { name: "name", selector: { text: {} } },
-  {
-    name: "minute_step",
-    selector: { number: { min: 1, max: 30, step: 1, mode: "box", unit_of_measurement: "min" } },
-  },
-  {
-    name: "",
-    type: "grid",
-    schema: [
-      { name: "expanded", selector: { boolean: {} } },
-      { name: "show_days", selector: { boolean: {} } },
-      { name: "show_next_alarm", selector: { boolean: {} } },
-      { name: "show_settings", selector: { boolean: {} } },
-      { name: "show_test_button", selector: { boolean: {} } },
-    ],
-  },
-];
-
 @customElement(ALARM_CARD_EDITOR_TAG)
 export class MacaAlarmCardEditor extends LitElement {
   @state() public hass?: HomeAssistant;
 
   @state() private _config?: MacaAlarmCardConfig;
 
-  /** Which device row (by index) has its override form open; only one at a time. */
-  @state() private _openIndex?: number;
+  /** Which device (by index) has its own detail page open; the list otherwise. */
+  @state() private _editingIndex?: number;
 
   public setConfig(config: MacaAlarmCardConfig): void {
     this._config = config;
@@ -80,6 +64,11 @@ export class MacaAlarmCardEditor extends LitElement {
     }
     const localize = createLocalizer(this.hass);
     const devices = (this._config.devices ?? []).map(normalizeDeviceConfig);
+
+    const editing = this._editingIndex !== undefined ? devices[this._editingIndex] : undefined;
+    if (editing) {
+      return this._renderDetail(editing, this._editingIndex!, localize);
+    }
 
     return html`
       <ha-form
@@ -102,62 +91,88 @@ export class MacaAlarmCardEditor extends LitElement {
             .computeLabel=${this._computeLabel}
             @value-changed=${this._onAddDeviceChanged}
           ></ha-form>
-          <ha-icon icon="mdi:plus"></ha-icon>
+          <ha-icon icon="mdi:plus" aria-label=${localize("editor.add_device")}></ha-icon>
         </div>
       </div>
     `;
   }
 
+  /** One row in the list: the resolved name plus edit and remove. */
   private _renderDeviceRow(
     entry: MacaAlarmDeviceConfig,
     index: number,
     localize: Localizer,
   ): TemplateResult {
-    const open = this._openIndex === index;
+    return html`
+      <div class="device-row">
+        <span class="device-name">${this._deviceLabel(entry)}</span>
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label=${localize("editor.edit_device")}
+          title=${localize("editor.edit_device")}
+          @click=${() => this._editDevice(index)}
+        >
+          <ha-icon icon="mdi:pencil-outline"></ha-icon>
+        </button>
+        <button
+          type="button"
+          class="icon-btn danger-icon"
+          aria-label=${localize("editor.remove_device")}
+          title=${localize("editor.remove_device")}
+          @click=${() => this._removeDevice(index)}
+        >
+          <ha-icon icon="mdi:trash-can-outline"></ha-icon>
+        </button>
+      </div>
+    `;
+  }
+
+  /** The detail page for one alarm: a back arrow, the device picker, every option. */
+  private _renderDetail(
+    entry: MacaAlarmDeviceConfig,
+    index: number,
+    localize: Localizer,
+  ): TemplateResult {
     const onChanged = (event: CustomEvent<{ value: MacaAlarmDeviceConfig }>): void =>
       this._onDeviceChanged(index, event);
 
     return html`
-      <div class="device-row">
-        <div class="device-row-header">
-          <ha-form
-            class="picker"
-            .hass=${this.hass}
-            .data=${entry}
-            .schema=${PICKER_SCHEMA}
-            .computeLabel=${this._computeLabel}
-            @value-changed=${onChanged}
-          ></ha-form>
-          <button
-            type="button"
-            class="icon-btn"
-            aria-expanded=${open ? "true" : "false"}
-            aria-label=${localize(open ? "action.collapse" : "action.expand")}
-            @click=${() => this._toggleRow(index)}
-          >
-            <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
-          </button>
-          <button
-            type="button"
-            class="icon-btn danger-icon"
-            aria-label=${localize("editor.remove_device")}
-            title=${localize("editor.remove_device")}
-            @click=${() => this._removeDevice(index)}
-          >
-            <ha-icon icon="mdi:trash-can-outline"></ha-icon>
-          </button>
-        </div>
-        ${open
-          ? html`<ha-form
-              .hass=${this.hass}
-              .data=${entry}
-              .schema=${DEVICE_SCHEMA}
-              .computeLabel=${this._computeDeviceLabel}
-              @value-changed=${onChanged}
-            ></ha-form>`
-          : nothing}
+      <div class="detail-header">
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label=${localize("editor.back")}
+          title=${localize("editor.back")}
+          @click=${this._closeDetail}
+        >
+          <ha-icon icon="mdi:arrow-left"></ha-icon>
+        </button>
+        <span class="detail-title">${this._deviceLabel(entry)}</span>
       </div>
+      <ha-form
+        .hass=${this.hass}
+        .data=${entry}
+        .schema=${PICKER_SCHEMA}
+        .computeLabel=${this._computeLabel}
+        @value-changed=${onChanged}
+      ></ha-form>
+      <ha-form
+        .hass=${this.hass}
+        .data=${entry}
+        .schema=${DEVICE_SCHEMA}
+        .computeLabel=${this._computeDeviceLabel}
+        @value-changed=${onChanged}
+      ></ha-form>
     `;
+  }
+
+  private _deviceLabel(entry: MacaAlarmDeviceConfig): string {
+    if (entry.name) {
+      return entry.name;
+    }
+    const device = this.hass?.devices?.[entry.device_id];
+    return device?.name_by_user || device?.name || entry.device_id;
   }
 
   private _computeLabel = (schema: FormSchemaItem): string => {
@@ -168,7 +183,7 @@ export class MacaAlarmCardEditor extends LitElement {
     return localize(`editor.${schema.name}`);
   };
 
-  /** Same as `_computeLabel`, but "expanded" reads as a single alarm's own state, not "every row". */
+  /** Same as `_computeLabel`, but "expanded" reads as this one alarm's own state. */
   private _computeDeviceLabel = (schema: FormSchemaItem): string => {
     if (schema.name === "expanded") {
       return createLocalizer(this.hass)("editor.device_expanded");
@@ -181,8 +196,12 @@ export class MacaAlarmCardEditor extends LitElement {
     fireEvent(this, "config-changed", { config: event.detail.value });
   };
 
-  private _toggleRow = (index: number): void => {
-    this._openIndex = this._openIndex === index ? undefined : index;
+  private _editDevice = (index: number): void => {
+    this._editingIndex = index;
+  };
+
+  private _closeDetail = (): void => {
+    this._editingIndex = undefined;
   };
 
   private _onDeviceChanged(index: number, event: CustomEvent<{ value: MacaAlarmDeviceConfig }>): void {
@@ -196,7 +215,6 @@ export class MacaAlarmCardEditor extends LitElement {
     const devices = (this._config?.devices ?? [])
       .map(normalizeDeviceConfig)
       .filter((_entry, entryIndex) => entryIndex !== index);
-    this._openIndex = undefined;
     this._updateDevices(devices);
   }
 
@@ -237,15 +255,21 @@ export class MacaAlarmCardEditor extends LitElement {
       }
 
       .device-row {
-        border: 1px solid var(--divider-color);
-        border-radius: 8px;
-        padding: 2px 4px 2px 12px;
-      }
-
-      .device-row-header {
         display: flex;
         align-items: center;
         gap: 2px;
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        padding: 2px 4px 2px 12px;
+        min-height: 40px;
+      }
+
+      .device-name {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .picker {
@@ -263,6 +287,21 @@ export class MacaAlarmCardEditor extends LitElement {
         gap: 8px;
         border-style: dashed;
         color: var(--secondary-text-color);
+      }
+
+      .detail-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .detail-title {
+        font-size: 1rem;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
     `,
   ];

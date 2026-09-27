@@ -16,15 +16,19 @@ import type {
   MacaAlarmDeviceConfig,
 } from "../types";
 
-const DEFAULTS = {
+/** Every display option is per-alarm now; this is what an entry falls back to when unset. */
+export const DEVICE_DEFAULTS = {
   hide_disabled: false,
   show_days: true,
   show_next_alarm: true,
   show_settings: true,
   show_test_button: false,
+  minute_step: 5,
   expandable: true,
   expanded: false,
 };
+
+type DeviceOptionKey = keyof typeof DEVICE_DEFAULTS;
 
 /** Relative times are re-rendered on this interval, nothing else ticks. */
 const TICK_INTERVAL = 30_000;
@@ -37,7 +41,7 @@ export class MacaAlarmCard extends LitElement {
 
   @state() private _narrow = false;
 
-  /** The one expanded device in accordion mode; unset while `expandable` is false. */
+  /** The one expanded device among the currently expandable rows. */
   @state() private _expandedDeviceId?: string;
 
   private _expandedSeeded = false;
@@ -63,7 +67,7 @@ export class MacaAlarmCard extends LitElement {
     if (devices.length === 1) {
       // The common case: one alarm clock. Show it fully open right away,
       // instead of a one-row list that still needs a click.
-      return { type: `custom:${ALARM_CARD_TAG}`, devices, expanded: true };
+      return { type: `custom:${ALARM_CARD_TAG}`, devices: [{ device_id: devices[0], expanded: true }] };
     }
     return { type: `custom:${ALARM_CARD_TAG}` };
   }
@@ -75,7 +79,7 @@ export class MacaAlarmCard extends LitElement {
     if (config.devices !== undefined && !Array.isArray(config.devices)) {
       throw new Error("`devices` must be a list of device ids or per-device config objects");
     }
-    this._config = { ...DEFAULTS, ...config };
+    this._config = config;
     this._views = [];
     this._deviceConfigs = new Map();
     this._expandedSeeded = false;
@@ -142,19 +146,22 @@ export class MacaAlarmCard extends LitElement {
     this._resizeObserver = undefined;
   }
 
-  /** `deviceConfig.expanded`, falling back to the card's own default. */
-  private _effectiveExpanded(view: AlarmView): boolean {
-    return (this._deviceConfigs.get(view.deviceId)?.expanded ?? this._config?.expanded ?? false) === true;
+  /** This alarm's own value for `key`, falling back to `DEVICE_DEFAULTS`. */
+  private _resolve<K extends DeviceOptionKey>(view: AlarmView, key: K): (typeof DEVICE_DEFAULTS)[K] {
+    const override = this._deviceConfigs.get(view.deviceId)?.[key];
+    return (override ?? DEVICE_DEFAULTS[key]) as (typeof DEVICE_DEFAULTS)[K];
+  }
+
+  /** Whether `view` is currently rendered expanded, accordion or fixed. */
+  private _isExpanded(view: AlarmView): boolean {
+    return this._resolve(view, "expandable")
+      ? view.deviceId === this._expandedDeviceId
+      : this._resolve(view, "expanded");
   }
 
   public getCardSize(): number {
     const rows = this._views.length || 1;
-    const expandedCount =
-      this._config?.expandable === false
-        ? this._views.filter((view) => this._effectiveExpanded(view)).length
-        : this._expandedDeviceId
-          ? 1
-          : 0;
+    const expandedCount = this._views.filter((view) => this._isExpanded(view)).length;
     return 1 + (rows - expandedCount) + expandedCount * 5;
   }
 
@@ -192,7 +199,7 @@ export class MacaAlarmCard extends LitElement {
     }
     this._views = views;
 
-    const visible = config.hide_disabled ? this._views.filter((view) => view.enabled) : this._views;
+    const visible = views.filter((view) => !(this._resolve(view, "hide_disabled") && !view.enabled));
 
     if (!visible.length) {
       return html`
@@ -207,9 +214,9 @@ export class MacaAlarmCard extends LitElement {
 
     if (!this._expandedSeeded) {
       this._expandedSeeded = true;
-      if (config.expandable !== false) {
-        this._expandedDeviceId = visible.find((view) => this._effectiveExpanded(view))?.deviceId;
-      }
+      this._expandedDeviceId = visible.find(
+        (view) => this._resolve(view, "expandable") && this._resolve(view, "expanded"),
+      )?.deviceId;
     }
 
     return html`
@@ -220,10 +227,9 @@ export class MacaAlarmCard extends LitElement {
   }
 
   private _renderItem(view: AlarmView): TemplateResult {
-    const config = this._config!;
     const deviceConfig = this._deviceConfigs.get(view.deviceId);
-    const expandable = config.expandable !== false;
-    const expanded = expandable ? view.deviceId === this._expandedDeviceId : this._effectiveExpanded(view);
+    const expandable = this._resolve(view, "expandable");
+    const expanded = this._isExpanded(view);
     const displayView = deviceConfig?.name ? { ...view, name: deviceConfig.name } : view;
 
     return html`
@@ -234,11 +240,11 @@ export class MacaAlarmCard extends LitElement {
         .narrow=${this._narrow}
         .expanded=${expanded}
         .expandable=${expandable}
-        .showDays=${deviceConfig?.show_days ?? config.show_days}
-        .showNextAlarm=${deviceConfig?.show_next_alarm ?? config.show_next_alarm}
-        .showSettings=${deviceConfig?.show_settings ?? config.show_settings}
-        .showTestButton=${deviceConfig?.show_test_button ?? config.show_test_button}
-        .minuteStep=${deviceConfig?.minute_step ?? config.minute_step ?? 5}
+        .showDays=${this._resolve(view, "show_days")}
+        .showNextAlarm=${this._resolve(view, "show_next_alarm")}
+        .showSettings=${this._resolve(view, "show_settings")}
+        .showTestButton=${this._resolve(view, "show_test_button")}
+        .minuteStep=${this._resolve(view, "minute_step")}
         @toggle-expand=${this._onToggleExpand}
       ></alarm-clocks-item>
     `;

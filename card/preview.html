@@ -1051,9 +1051,7 @@
       // rather than about the list.
       const base = (device, extra = {}) => ({
         type: "custom:alarm-clocks-card",
-        devices: [device],
-        expanded: true,
-        ...extra,
+        devices: [{ device_id: device, expanded: true, ...extra }],
       });
 
       const SECTIONS = [
@@ -1065,8 +1063,8 @@
             { label: "armed", tag: ALARM, config: base(MAIN) },
             { label: "ringing", tag: ALARM, config: base(RINGING), note: "snooze + dismiss, ringing duration from last_changed" },
             { label: "snoozed", tag: ALARM, config: base(SNOOZED) },
-            { label: "pre_active", tag: ALARM, config: base(PRE) },
-            { label: "post_pending", tag: ALARM, config: base(POST) },
+            { label: "pre_active", tag: ALARM, config: base(PRE), note: "cancel skips this occurrence only, next one stands" },
+            { label: "post_pending", tag: ALARM, config: base(POST), note: "cancel skips the post script" },
             { label: "disabled", tag: ALARM, config: base(OFF), note: "next_alarm is unavailable while off" },
             { label: "status sensor unavailable", tag: ALARM, config: base(DERIVED), note: "state derived from the switch" },
           ],
@@ -1090,13 +1088,14 @@
         {
           title: "Expand and collapse",
           slug: "expand",
-          prose: "expandable and expanded together decide whether a row can be toggled at all, and what it starts (or stays) as.",
+          prose: "expandable and expanded are per-alarm: whether a row can be toggled at all, and what it starts (or stays) as. Mixing them in one card is fine — a fixed-open alarm and a togglable one can sit side by side.",
           cases: [
-            { label: "collapsed by default", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN] }, note: "expandable: true, expanded: false" },
-            { label: "expandable: false, expanded: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN], expandable: false, expanded: false }, note: "no chevron, always the compact row" },
-            { label: "expandable: false, expanded: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN], expandable: false, expanded: true }, note: "no chevron, always the full body" },
-            { label: "expanded: true seeds the first row", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [RINGING, OFF, MAIN], expanded: true }, note: "an explicit list keeps its own order, so Late Shift (listed first) opens; then it's an accordion" },
-            { label: "a device's own expanded: true wins", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, { device_id: OFF, expanded: true }, RINGING] }, note: "Vacation opens; Work and Late Shift have no expanded of their own to fall back on" },
+            { label: "collapsed by default", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN] }, note: "expandable: true, expanded: false are the defaults for every alarm" },
+            { label: "expandable: false, expanded: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, expandable: false, expanded: false }] }, note: "no chevron, always the compact row" },
+            { label: "expandable: false, expanded: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, expandable: false, expanded: true }] }, note: "no chevron, always the full body" },
+            { label: "a device's own expanded: true seeds the accordion", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [RINGING, { device_id: OFF, expanded: true }, MAIN] }, note: "Vacation opens, even though it's not first in the list; the others never set their own expanded" },
+            { label: "first match wins when several set expanded: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: RINGING, expanded: true }, { device_id: OFF, expanded: true }] }, note: "Late Shift, because it's listed first" },
+            { label: "fixed-open and togglable, side by side", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, expandable: false, expanded: true }, RINGING] }, note: "Work is always fully shown; Late Shift is a normal collapsed row" },
           ],
         },
         {
@@ -1131,8 +1130,8 @@
           cases: [
             { label: "all alarms", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms" }, width: 460 },
             { label: "subset", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [RINGING, SNOOZED, OFF] } },
-            { label: "hide_disabled: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, OFF], hide_disabled: true }, note: "Vacation is filtered out" },
-            { label: "show_next_alarm: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, SNOOZED], show_next_alarm: false } },
+            { label: "hide_disabled: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, hide_disabled: true }, { device_id: OFF, hide_disabled: true }] }, note: "Vacation is filtered out; hide_disabled is per-alarm, set on both here" },
+            { label: "show_next_alarm: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, show_next_alarm: false }, { device_id: SNOOZED, show_next_alarm: false }] } },
             { label: "per-alarm overrides", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, name: "Bedroom", expanded: true, show_days: false }, RINGING] }, note: "Bedroom: renamed, expanded, no weekdays; Late Shift: untouched defaults" },
             { label: "single alarm, no title", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [LONG_NAME] } },
             { label: "no alarms", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: ["d-gone"] } },
@@ -1144,7 +1143,7 @@
           slug: "editors",
           prose: "The config editor, wired to the card underneath: a change here calls setConfig on the card, exactly as the Lovelace editor does.",
           cases: [
-            { label: "card editor", editor: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [MAIN, RINGING], show_test_button: true }, width: 460 },
+            { label: "card editor", editor: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [{ device_id: MAIN, show_test_button: true }, RINGING] }, width: 460 },
           ],
         },
         {
@@ -1156,7 +1155,7 @@
           prose: "The same card, collapsed and with a row expanded: this is the selection in the README screenshot.",
           cases: [
             { label: "collapsed", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [RINGING, MAIN, WEEKEND, OFF] }, width: 437 },
-            { label: "ringing, expanded", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [RINGING, MAIN, WEEKEND, OFF], expanded: true }, note: "an explicit list keeps its order, so Late Shift (listed first) is the one expanded: true opens; settings are shown directly, not collapsible", width: 437 },
+            { label: "ringing, expanded", tag: ALARM, config: { type: "custom:alarm-clocks-card", title: "Alarms", devices: [{ device_id: RINGING, expanded: true }, MAIN, WEEKEND, OFF] }, note: "Late Shift sets its own expanded: true; settings are shown directly, not collapsible", width: 437 },
           ],
         },
         {

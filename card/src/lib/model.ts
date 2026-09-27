@@ -166,12 +166,18 @@ export function buildAlarmView(hass: HomeAssistant, deviceId: string): AlarmView
     days,
     isOneShot: days.every((day) => !day.active),
     settings,
-    // `alarm_clocks.snooze` and `alarm_clocks.dismiss` are no-ops unless the alarm rings or snoozes.
-    // A snooze duration of zero switches snoozing off in the integration.
+    // `alarm_clocks.snooze` is a no-op unless the alarm rings or snoozes. A
+    // snooze duration of zero switches snoozing off in the integration.
     canSnooze:
       (status === STATUS.RINGING || status === STATUS.SNOOZED) &&
       (settings.find((setting) => setting.role === "snoozeDuration")?.value ?? 0) > 0,
-    canDismiss: status === STATUS.RINGING || status === STATUS.SNOOZED,
+    // `alarm_clocks.dismiss` also cancels a running pre phase or a pending
+    // post action, so the button stays available in those states too.
+    canDismiss:
+      status === STATUS.RINGING ||
+      status === STATUS.SNOOZED ||
+      status === STATUS.PRE_ACTIVE ||
+      status === STATUS.POST_PENDING,
     canTest: enabled && status !== STATUS.RINGING,
     incomplete: trackedEntityIds.length === 0,
   };

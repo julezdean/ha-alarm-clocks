@@ -233,17 +233,26 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         """Calculate the next regular alarm time.
 
         If weekdays are selected, the next active weekday is used. Otherwise
-        the alarm counts as one-shot and fires today or tomorrow.
+        the alarm counts as one-shot and fires today or tomorrow. An
+        occurrence at or before `runtime.skip_until` (a cancelled pre phase)
+        does not count, which is what pushes the search past it.
         """
         alarm_time = self.config.alarm_time
+        reference = now
+        if self.runtime.skip_until is not None and self.runtime.skip_until > reference:
+            reference = self.runtime.skip_until
 
         if self.config.is_one_shot:
-            today = self._combine(now, alarm_time)
-            return today if today > now else self._combine(now + timedelta(days=1), alarm_time)
+            today = self._combine(reference, alarm_time)
+            return (
+                today
+                if today > reference
+                else self._combine(reference + timedelta(days=1), alarm_time)
+            )
 
         for offset in range(8):
-            candidate = self._combine(now + timedelta(days=offset), alarm_time)
-            if self.config.days[candidate.weekday()] and candidate > now:
+            candidate = self._combine(reference + timedelta(days=offset), alarm_time)
+            if self.config.days[candidate.weekday()] and candidate > reference:
                 return candidate
         return None
 
@@ -309,6 +318,10 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
     def _async_reschedule(self) -> None:
         """Re-arm all timers based on the current state."""
         now = dt_util.now()
+
+        # A skip that has already passed cannot affect anything further out.
+        if self.runtime.skip_until is not None and self.runtime.skip_until <= now:
+            self.runtime.skip_until = None
 
         next_regular = self._next_regular_alarm(now) if self.config.enabled else None
         self._async_set_timer(TIMER_ALARM, next_regular, self._handle_alarm)
@@ -468,38 +481,64 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         self._async_push()
 
     async def async_dismiss(self, source: str = SOURCE_MANUAL) -> None:
-        """Dismiss the alarm."""
-        if not (self.runtime.ringing or self.snooze_active):
-            _LOGGER.debug(
-                "%s: dismiss ignored, neither ringing nor snoozing",
-                self.config_entry.title,
-            )
+        """Dismiss whatever is currently active.
+
+        Ringing or snoozing: ends it, runs the dismiss script, and schedules
+        (or immediately runs) the post action, same as before. A pending post
+        action: skips the post script and finishes the cycle right away,
+        instead of waiting out the rest of the post offset. The pre phase:
+        cancels it; the alarm clock goes back to armed for its next regular
+        occurrence, unaffected. Outside all of these it is a no-op.
+        """
+        if self.runtime.ringing or self.snooze_active:
+            self.runtime.ringing = False
+            self.runtime.ringing_since = None
+            self.runtime.snooze_until = None
+            self.runtime.pre_until = None
+            if self.config.post_offset > 0:
+                self.runtime.post_due_at = dt_util.now() + timedelta(
+                    minutes=self.config.post_offset
+                )
+            else:
+                self.runtime.post_due_at = None
+            await self._async_save()
+
+            await self._async_script_call("turn_off", self.config.alarm_script)
+            self._fire(EVENT_DISMISSED, {ATTR_SOURCE: source})
+            await self._async_script_call("turn_on", self.config.dismiss_script)
+
+            self._async_reschedule()
+            self._async_push()
+
+            # A post offset of zero disables the post action entirely. The
+            # one-shot alarm still has to disable itself, that is core logic
+            # and not part of the post action.
+            if self.config.post_offset <= 0:
+                await self._async_finish_cycle(run_post_action=False)
             return
 
-        self.runtime.ringing = False
-        self.runtime.ringing_since = None
-        self.runtime.snooze_until = None
-        self.runtime.pre_until = None
-        if self.config.post_offset > 0:
-            self.runtime.post_due_at = dt_util.now() + timedelta(
-                minutes=self.config.post_offset
-            )
-        else:
-            self.runtime.post_due_at = None
-        await self._async_save()
-
-        await self._async_script_call("turn_off", self.config.alarm_script)
-        self._fire(EVENT_DISMISSED, {ATTR_SOURCE: source})
-        await self._async_script_call("turn_on", self.config.dismiss_script)
-
-        self._async_reschedule()
-        self._async_push()
-
-        # A post offset of zero disables the post action entirely. The one-shot
-        # alarm still has to disable itself, that is core logic and not part of
-        # the post action.
-        if self.config.post_offset <= 0:
+        if self.runtime.post_due_at is not None:
+            self._fire(EVENT_DISMISSED, {ATTR_SOURCE: source})
             await self._async_finish_cycle(run_post_action=False)
+            return
+
+        if self.pre_active:
+            # Cancelling only the pre phase is not enough: reschedule would
+            # otherwise see the same occurrence still ahead, inside its own
+            # pre-offset window, and re-enter the pre phase on the spot. The
+            # occurrence itself has to be skipped instead.
+            self.runtime.skip_until = self.runtime.pre_until
+            self.runtime.pre_until = None
+            await self._async_save()
+            self._fire(EVENT_DISMISSED, {ATTR_SOURCE: source})
+            self._async_reschedule()
+            self._async_push()
+            return
+
+        _LOGGER.debug(
+            "%s: dismiss ignored, nothing is ringing, snoozing or pending",
+            self.config_entry.title,
+        )
 
     async def _async_run_post(self) -> None:
         """Run the post action once the post offset has elapsed."""

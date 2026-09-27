@@ -13,6 +13,7 @@ const de: Resource = {
 
   "action.snooze": "Schlummern",
   "action.dismiss": "Ausschalten",
+  "action.cancel": "Abbrechen",
   "action.test": "Testen",
   "action.enable": "Wecker einschalten",
   "action.disable": "Wecker ausschalten",
@@ -58,12 +59,13 @@ const de: Resource = {
   "editor.show_settings": "Einstellungen anzeigen",
   "editor.minute_step": "Minutenschritt",
   "editor.show_test_button": "Test-Button anzeigen",
-  "editor.hide_disabled": "Deaktivierte Wecker ausblenden",
+  "editor.hide_disabled": "Ausblenden, wenn deaktiviert",
   "editor.expandable": "Auf-/Zuklappen erlauben",
-  "editor.expanded": "Zeilen aufgeklappt starten",
   "editor.device_expanded": "Aufgeklappt starten",
   "editor.add_device": "Wecker hinzufügen",
+  "editor.edit_device": "Bearbeiten",
   "editor.remove_device": "Entfernen",
+  "editor.back": "Zurück",
   "editor.pick_device": "Wecker auswählen",
 };
 
@@ -78,6 +80,7 @@ const en: Resource = {
 
   "action.snooze": "Snooze",
   "action.dismiss": "Dismiss",
+  "action.cancel": "Cancel",
   "action.test": "Test",
   "action.enable": "Turn alarm on",
   "action.disable": "Turn alarm off",
@@ -123,12 +126,13 @@ const en: Resource = {
   "editor.show_settings": "Show settings",
   "editor.minute_step": "Minute step",
   "editor.show_test_button": "Show test button",
-  "editor.hide_disabled": "Hide disabled alarms",
+  "editor.hide_disabled": "Hide when disabled",
   "editor.expandable": "Allow collapsing",
-  "editor.expanded": "Start rows expanded",
   "editor.device_expanded": "Start expanded",
   "editor.add_device": "Add alarm clock",
+  "editor.edit_device": "Edit",
   "editor.remove_device": "Remove",
+  "editor.back": "Back",
   "editor.pick_device": "Pick an alarm clock",
 };
 

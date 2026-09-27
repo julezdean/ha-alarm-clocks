@@ -119,8 +119,8 @@ export class MacaAlarmItem extends LitElement {
               <button
                 type="button"
                 class="icon-btn danger-icon"
-                aria-label=${localize("action.dismiss")}
-                title=${localize("action.dismiss")}
+                aria-label=${localize(this._dismissLabelKey(view))}
+                title=${localize(this._dismissLabelKey(view))}
                 @click=${() => this._dismiss(view)}
               >
                 <ha-icon icon="mdi:alarm-off"></ha-icon>
@@ -129,6 +129,13 @@ export class MacaAlarmItem extends LitElement {
           `
         : this._renderToggle(view, localize)}
     `;
+  }
+
+  /** "Dismiss" while ringing or snoozed; "Cancel" while only the pre or post phase is running. */
+  private _dismissLabelKey(view: AlarmView): "action.dismiss" | "action.cancel" {
+    return view.status === STATUS.RINGING || view.status === STATUS.SNOOZED
+      ? "action.dismiss"
+      : "action.cancel";
   }
 
   private _subtitle(view: AlarmView, localize: Localizer, language: string): string {
@@ -309,7 +316,7 @@ export class MacaAlarmItem extends LitElement {
           : nothing}
         ${view.canDismiss
           ? html`<button type="button" class="btn danger" @click=${() => this._dismiss(view)}>
-              <ha-icon icon="mdi:alarm-off"></ha-icon>${localize("action.dismiss")}
+              <ha-icon icon="mdi:alarm-off"></ha-icon>${localize(this._dismissLabelKey(view))}
             </button>`
           : nothing}
         ${showTest

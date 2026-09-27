@@ -96,18 +96,28 @@ export interface LovelaceGridOptions {
 }
 
 /**
- * Per-alarm overrides. Every field falls back to the same-named card option
- * when unset, so a plain device id (no overrides at all) is also valid in
- * `devices`.
+ * Every display option lives here, per alarm; unset fields fall back to
+ * `DEVICE_DEFAULTS` (see `cards/alarm-clocks-card.ts`), so a plain device id
+ * with no overrides at all is also valid in `devices`.
  */
 export interface MacaAlarmDeviceConfig {
   device_id: string;
   name?: string;
+  hide_disabled?: boolean;
   show_days?: boolean;
   show_next_alarm?: boolean;
   show_settings?: boolean;
   show_test_button?: boolean;
   minute_step?: number;
+  /** Whether this row can be expanded and collapsed by clicking it. Default `true`. */
+  expandable?: boolean;
+  /**
+   * With `expandable: false`, the fixed state of this row. With
+   * `expandable: true`, whether this row is a candidate to seed the
+   * accordion: the first alarm (in `devices` order, or sorted by name when
+   * `devices` is empty) that is both expandable and resolves `expanded` to
+   * `true` opens; only one row is expanded at a time after that.
+   */
   expanded?: boolean;
 }
 
@@ -115,27 +125,11 @@ export interface MacaAlarmCardConfig extends LovelaceCardConfig {
   title?: string;
   /**
    * Omitted or empty: every alarm clock found in the registry, sorted by
-   * name, all sharing the card's own options below. A list of entries (plain
-   * device ids or `MacaAlarmDeviceConfig` objects): exactly those alarms, in
-   * that order, each able to override the card's options for itself.
+   * name, all using `DEVICE_DEFAULTS`. A list of entries (plain device ids or
+   * `MacaAlarmDeviceConfig` objects): exactly those alarms, in that order,
+   * each configured independently.
    */
   devices?: (string | MacaAlarmDeviceConfig)[];
-  hide_disabled?: boolean;
-  show_days?: boolean;
-  show_next_alarm?: boolean;
-  show_settings?: boolean;
-  show_test_button?: boolean;
-  minute_step?: number;
-  /** Whether a row can be expanded and collapsed by clicking it. Default `true`. */
-  expandable?: boolean;
-  /**
-   * Default for any alarm that does not set its own `expanded`. With
-   * `expandable: false`, that is the fixed state of the row. With
-   * `expandable: true`, the first alarm (in `devices` order, or sorted by
-   * name when `devices` is empty) that resolves to `true` seeds the
-   * accordion; only one row is expanded at a time after that.
-   */
-  expanded?: boolean;
 }
 
 declare global {

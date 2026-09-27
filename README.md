@@ -37,7 +37,12 @@ your own automations through the events instead of through scripts. Both can
 be mixed.
 
 Each phase can also be switched off: a pre or post offset of zero skips that
-phase entirely, a snooze duration of zero disables snoozing.
+phase entirely, a snooze duration of zero disables snoozing. A phase that is
+already running can also be cancelled on the spot, without touching its
+offset — `alarm_clocks.dismiss` (and the card's dismiss button) doubles as
+"cancel" while the pre or post phase is active. Cancelling the pre phase
+skips only that one occurrence; the alarm clock stays armed for its next
+regular one. Cancelling a pending post action just skips the post script.
 
 ## Features
 
@@ -126,31 +131,21 @@ detail: alarm time, weekdays, settings, snooze and dismiss.
 
 ```yaml
 type: custom:alarm-clocks-card
-devices: []          # empty = all alarm clocks
 title: Bedroom
-hide_disabled: false
-show_days: true
-show_next_alarm: true
-show_settings: true
-show_test_button: false
-minute_step: 5
-expandable: true
-expanded: false
+devices:
+  - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
+    name: Bedroom alarm
+    expanded: true
 ```
 
-Every field is optional, and the card can be configured entirely through the
-graphical card editor. With no `devices`, the card shows every alarm clock it
-finds; with exactly one, that row starts fully expanded like a dedicated
-detail card. `expandable` decides whether a row can be toggled by clicking it
-at all; `expanded` is either the fixed state of every row (`expandable:
-false`) or which row starts open (`expandable: true`, and only one row is
-open at a time — opening another closes the first).
-
-Instead of a plain device ID, an entry in `devices` can be an object that
-overrides any of the above for just that one alarm — a name, its own
-`expanded`, whichever display options it needs. The visual editor's device
-list is built for exactly this: add, remove and expand a row per alarm.
-Details and every field are in [card/README.md](card/README.md).
+With no `devices`, the card shows every alarm clock it finds, sorted by name.
+Every display option — weekdays, settings, the test button, whether a row can
+be expanded at all and which one starts open — lives on the alarm itself, not
+on the card, so a mix of always-open, always-collapsed and togglable alarms
+can sit in one card. The visual editor is built for exactly this: past the
+title, it is a list of alarms, each opened through its own pencil icon into a
+detail page rather than an inline form. Details and every field are in
+[card/README.md](card/README.md).
 
 The card talks to the integration through the services
 `alarm_clocks.snooze`, `alarm_clocks.dismiss` and
@@ -164,7 +159,7 @@ shown broken.
 | Service | Effect |
 | --- | --- |
 | `alarm_clocks.snooze` | Snooze; the optional field `duration` (minutes) overrides the configured duration and also works when the configured duration is zero |
-| `alarm_clocks.dismiss` | End ringing or snoozing and start the post action |
+| `alarm_clocks.dismiss` | End ringing or snoozing and start the post action; also cancels a running pre phase (the next regular occurrence stands) or skips a pending post action |
 | `alarm_clocks.trigger_alarm` | Trigger the alarm immediately (test) |
 | `alarm_clocks.set_alarm` | Set the fields `time` and/or `days` |
 
@@ -194,7 +189,7 @@ data:
 | `alarm_clocks_pre_trigger` | The pre offset before the alarm time is reached; the state turns `pre_active` until the alarm rings |
 | `alarm_clocks_alarm_triggered` | The alarm starts (`source`: `schedule`, `manual`, `snooze_end`) |
 | `alarm_clocks_snoozed` | A snooze started (`duration`, `snooze_until`) |
-| `alarm_clocks_dismissed` | The alarm ended (`source`: `manual`, `auto`, `cleanup`) |
+| `alarm_clocks_dismissed` | The alarm ended, or a pre or post phase was cancelled (`source`: `manual`, `auto`, `cleanup`) |
 | `alarm_clocks_post_trigger` | The post offset after the dismiss has elapsed |
 
 Every event additionally carries `entry_id`, `device_id` and `name`.

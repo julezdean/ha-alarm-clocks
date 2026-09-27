@@ -173,7 +173,10 @@ function check(name, fn) {
 // --- armed, expanded ---------------------------------------------------------
 {
   const { hass } = makeHass();
-  const card = await mount({ type: "custom:alarm-clocks-card", devices: [DEVICE], expanded: true }, hass);
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
   const text = visibleText(card);
   check("armed: shows name, status and alarm time", () => {
     assert.match(text, /Wecker 1/);
@@ -203,7 +206,10 @@ function check(name, fn) {
       "binary_sensor.wecker_1_klingelt": { state: "on" },
     },
   });
-  const card = await mount({ type: "custom:alarm-clocks-card", devices: [DEVICE], expanded: true }, hass);
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
   const text = visibleText(card);
   check("ringing: offers snooze and dismiss", () => {
     assert.match(text, /Klingelt/);
@@ -220,6 +226,48 @@ function check(name, fn) {
   card.remove();
 }
 
+// --- pre_active / post_pending: cancel instead of test ------------------------
+{
+  const { hass, calls } = makeHass({
+    states: { "sensor.wecker_1_status": { state: "pre_active" } },
+  });
+  const card = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, expanded: true, show_test_button: true }],
+    },
+    hass,
+  );
+  check("pre_active: offers cancel, not the test button", () => {
+    const text = visibleText(card);
+    assert.match(text, /Abbrechen/);
+    assert.doesNotMatch(text, /Testen/);
+  });
+  check("pre_active: cancel calls alarm_clocks.dismiss on the device", () => {
+    deepQuery(card.shadowRoot, ".actions .btn.danger").click();
+    assert.deepEqual(calls.at(-1), ["alarm_clocks", "dismiss", {}, { device_id: DEVICE }]);
+  });
+  card.remove();
+}
+{
+  const { hass } = makeHass({
+    states: { "sensor.wecker_1_status": { state: "post_pending" } },
+  });
+  const card = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, expanded: true, show_test_button: true }],
+    },
+    hass,
+  );
+  check("post_pending: offers cancel, not the test button", () => {
+    const text = visibleText(card);
+    assert.match(text, /Abbrechen/);
+    assert.doesNotMatch(text, /Testen/);
+  });
+  card.remove();
+}
+
 // --- disabled, next_alarm unavailable -----------------------------------------
 {
   const { hass } = makeHass({
@@ -229,7 +277,10 @@ function check(name, fn) {
       "sensor.wecker_1_nachster_alarm": { state: "unavailable" },
     },
   });
-  const card = await mount({ type: "custom:alarm-clocks-card", devices: [DEVICE], expanded: true }, hass);
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
   check("disabled: unavailable next_alarm renders as 'Kein Alarm'", () => {
     const text = visibleText(card);
     assert.match(text, /Deaktiviert/);
@@ -245,7 +296,10 @@ function check(name, fn) {
     overrides.states[`switch.wecker_1_${day}`] = { state: "off" };
   }
   const { hass } = makeHass(overrides);
-  const card = await mount({ type: "custom:alarm-clocks-card", devices: [DEVICE], expanded: true }, hass);
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
   check("one-shot: shows the badge when no weekday is active", () => {
     assert.match(visibleText(card), /Einmalig/);
   });
@@ -273,7 +327,10 @@ function check(name, fn) {
 // --- interaction -------------------------------------------------------------
 {
   const { hass, calls } = makeHass();
-  const card = await mount({ type: "custom:alarm-clocks-card", devices: [DEVICE], expanded: true }, hass);
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
   const picker = deepQuery(card.shadowRoot, "alarm-clocks-weekday-picker");
   await picker.updateComplete;
   picker.shadowRoot.querySelectorAll('button[role="switch"]')[5].click();
@@ -301,7 +358,7 @@ function check(name, fn) {
 {
   const { hass, calls } = makeHass();
   const card = await mount(
-    { type: "custom:alarm-clocks-card", devices: [DEVICE], expanded: true },
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
     hass,
   );
   const rows = deepQueryAll(card.shadowRoot, "alarm-clocks-setting-row");
@@ -385,8 +442,10 @@ function check(name, fn) {
   const card = await mount(
     {
       type: "custom:alarm-clocks-card",
-      devices: [{ device_id: DEVICE, name: "Bedroom", show_days: false }, { device_id: DEVICE2 }],
-      expanded: true,
+      devices: [
+        { device_id: DEVICE, name: "Bedroom", show_days: false, expanded: true },
+        { device_id: DEVICE2 },
+      ],
     },
     hass,
   );
@@ -399,7 +458,7 @@ function check(name, fn) {
     assert.deepEqual(names.slice(0, 2), ["Bedroom", "Aaa Wecker"]);
   });
   check("per-device show_days: false hides only that alarm's weekday row", () => {
-    // Bedroom is first in the list, so card-level expanded: true opens it, not "Aaa Wecker".
+    // Bedroom is first in the list and sets its own expanded: true, so it opens, not "Aaa Wecker".
     assert.equal(deepQuery(card.shadowRoot, "alarm-clocks-weekday-picker"), null);
   });
   card.remove();
@@ -428,7 +487,10 @@ function check(name, fn) {
 {
   const { hass } = makeHass();
   const fixedOpen = await mount(
-    { type: "custom:alarm-clocks-card", devices: [DEVICE], expandable: false, expanded: true },
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, expandable: false, expanded: true }],
+    },
     hass,
   );
   check("expandable: false, expanded: true: always shows the full body, no chevron", () => {
@@ -439,7 +501,10 @@ function check(name, fn) {
 
   const { hass: hass2 } = makeHass();
   const fixedClosed = await mount(
-    { type: "custom:alarm-clocks-card", devices: [DEVICE], expandable: false, expanded: false },
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, expandable: false, expanded: false }],
+    },
     hass2,
   );
   check("expandable: false, expanded: false: always shows the compact row, no chevron", () => {
@@ -447,6 +512,36 @@ function check(name, fn) {
     assert.equal(deepQuery(fixedClosed.shadowRoot, "button.expand-btn"), null);
   });
   fixedClosed.remove();
+}
+{
+  // expandable is per-device now: one alarm can be permanently open while
+  // another, in the same card, stays a normal toggleable row.
+  const { hass } = makeHass({
+    devices: [
+      { id: DEVICE, slug: "wecker_1", name: "Wecker 1", time: "06:30:00" },
+      { id: DEVICE2, slug: "wecker_2", name: "Wecker 2", time: "08:15:00" },
+    ],
+  });
+  const card = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [
+        { device_id: DEVICE, expandable: false, expanded: true },
+        { device_id: DEVICE2 },
+      ],
+    },
+    hass,
+  );
+  check("a fixed-open alarm and a togglable one coexist in the same card", () => {
+    assert.equal(steppedTime(card), "06:30");
+    assert.equal(deepQueryAll(card.shadowRoot, "button.expand-btn").length, 1);
+  });
+  deepQuery(card.shadowRoot, "button.expand-btn").click();
+  await card.updateComplete;
+  check("expanding the togglable one leaves the fixed one open too", () => {
+    assert.equal(deepQueryAll(card.shadowRoot, "alarm-clocks-time-stepper").length, 2);
+  });
+  card.remove();
 }
 
 // --- multiple devices, hide_disabled --------------------------------------------
@@ -470,7 +565,10 @@ function check(name, fn) {
     ],
   });
   const filtered = await mount(
-    { type: "custom:alarm-clocks-card", devices: [DEVICE, DEVICE2], hide_disabled: true },
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, hide_disabled: true }, { device_id: DEVICE2, hide_disabled: true }],
+    },
     hass2,
   );
   check("hide_disabled: true hides the switched off alarm", () => {
@@ -485,7 +583,7 @@ function check(name, fn) {
 {
   const { hass } = makeHass({ language: "en" });
   const card = await mount(
-    { type: "custom:alarm-clocks-card", devices: [DEVICE], expanded: true },
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
     hass,
   );
   check("localization: falls back to English for non-German locales", () => {
@@ -501,7 +599,10 @@ for (const name of results) {
 {
   const { hass, calls } = makeHass();
   const card = await mount(
-    { type: "custom:alarm-clocks-card", devices: [DEVICE], expanded: true, minute_step: 5 },
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, expanded: true, minute_step: 5 }],
+    },
     hass,
   );
   const stepper = deepQuery(card.shadowRoot, "alarm-clocks-time-stepper");
