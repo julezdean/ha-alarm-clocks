@@ -69,29 +69,6 @@ export function findMacaDevices(hass: HomeAssistant): string[] {
   return [...devices];
 }
 
-/** Resolve the device a card config points at. */
-export function resolveDeviceId(
-  hass: HomeAssistant,
-  config: { device_id?: string; entity?: string },
-): { deviceId?: string; error?: "none" | "multiple" | "not_found" } {
-  if (config.device_id) {
-    return hass.devices?.[config.device_id]
-      ? { deviceId: config.device_id }
-      : { error: "not_found" };
-  }
-
-  if (config.entity) {
-    const deviceId = hass.entities?.[config.entity]?.device_id;
-    return deviceId ? { deviceId } : { error: "not_found" };
-  }
-
-  const candidates = findMacaDevices(hass);
-  if (candidates.length === 1) {
-    return { deviceId: candidates[0] };
-  }
-  return { error: candidates.length === 0 ? "none" : "multiple" };
-}
-
 /**
  * Map every Alarm Clocks entity of a device to its role. Unknown translation keys are
  * ignored, so entities added by a later version of the integration cannot

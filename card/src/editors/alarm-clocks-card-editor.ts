@@ -14,8 +14,11 @@ interface FormSchemaItem {
 }
 
 const SCHEMA: FormSchemaItem[] = [
-  { name: "device_id", selector: { device: { filter: { integration: ALARM_CLOCKS_DOMAIN } } } },
-  { name: "name", selector: { text: {} } },
+  {
+    name: "devices",
+    selector: { device: { filter: { integration: ALARM_CLOCKS_DOMAIN }, multiple: true } },
+  },
+  { name: "title", selector: { text: {} } },
   {
     name: "minute_step",
     selector: { number: { min: 1, max: 30, step: 1, mode: "box", unit_of_measurement: "min" } },
@@ -24,10 +27,12 @@ const SCHEMA: FormSchemaItem[] = [
     name: "",
     type: "grid",
     schema: [
+      { name: "expandable", selector: { boolean: {} } },
+      { name: "expanded", selector: { boolean: {} } },
+      { name: "hide_disabled", selector: { boolean: {} } },
       { name: "show_days", selector: { boolean: {} } },
       { name: "show_next_alarm", selector: { boolean: {} } },
       { name: "show_settings", selector: { boolean: {} } },
-      { name: "settings_expanded", selector: { boolean: {} } },
       { name: "show_test_button", selector: { boolean: {} } },
     ],
   },

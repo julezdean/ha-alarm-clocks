@@ -96,22 +96,22 @@ export interface LovelaceGridOptions {
 }
 
 export interface MacaAlarmCardConfig extends LovelaceCardConfig {
-  device_id?: string;
-  entity?: string;
-  name?: string;
+  title?: string;
+  devices?: string[];
+  hide_disabled?: boolean;
   show_days?: boolean;
   show_next_alarm?: boolean;
   show_settings?: boolean;
-  settings_expanded?: boolean;
   show_test_button?: boolean;
   minute_step?: number;
-}
-
-export interface MacaAlarmListCardConfig extends LovelaceCardConfig {
-  title?: string;
-  devices?: string[];
-  show_next_alarm?: boolean;
-  hide_disabled?: boolean;
+  /** Whether a row can be expanded and collapsed by clicking it. Default `true`. */
+  expandable?: boolean;
+  /**
+   * With `expandable: false`, the fixed state of every row. With
+   * `expandable: true`, the initial state before the first click; only one
+   * row can be expanded at a time.
+   */
+  expanded?: boolean;
 }
 
 declare global {

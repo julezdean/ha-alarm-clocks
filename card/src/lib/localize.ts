@@ -19,9 +19,8 @@ const de: Resource = {
   "action.toggle_day": "{day} umschalten",
   "action.decrease": "{label} verringern",
   "action.increase": "{label} erhöhen",
-  "action.edit_time": "Weckzeit bearbeiten",
-  "action.show_settings": "Einstellungen anzeigen",
-  "action.hide_settings": "Einstellungen ausblenden",
+  "action.expand": "Aufklappen",
+  "action.collapse": "Zuklappen",
 
   "label.no_alarm": "Kein Alarm",
   "label.one_shot": "Einmalig",
@@ -48,28 +47,19 @@ const de: Resource = {
   "unit.minute": "Min.",
   "unit.minutes_short": "min",
 
-  "error.no_device":
-    "Kein Wecker ausgewählt. Wähle im Card-Editor einen Wecker aus.",
-  "error.multiple_devices":
-    "Es gibt mehrere Wecker. Wähle im Card-Editor aus, welcher angezeigt werden soll.",
-  "error.device_not_found":
-    "Der konfigurierte Wecker existiert nicht mehr. Wurde er in den Integrationen entfernt?",
-  "error.incomplete":
-    "Die Entities dieses Weckers konnten nicht zugeordnet werden. Sind sie in der Entity-Registry deaktiviert?",
   "error.unavailable": "Der Wecker ist derzeit nicht verfügbar.",
   "error.no_alarms": "Keine Wecker gefunden.",
 
-  "editor.device_id": "Wecker",
   "editor.devices": "Wecker (leer = alle)",
-  "editor.name": "Name (optional)",
   "editor.title": "Titel (optional)",
   "editor.show_days": "Wochentage anzeigen",
   "editor.show_next_alarm": "Nächsten Alarm anzeigen",
   "editor.show_settings": "Einstellungen anzeigen",
-  "editor.settings_expanded": "Einstellungen aufgeklappt starten",
   "editor.minute_step": "Minutenschritt",
   "editor.show_test_button": "Test-Button anzeigen",
   "editor.hide_disabled": "Deaktivierte Wecker ausblenden",
+  "editor.expandable": "Auf-/Zuklappen erlauben",
+  "editor.expanded": "Zeilen aufgeklappt starten",
 };
 
 const en: Resource = {
@@ -89,9 +79,8 @@ const en: Resource = {
   "action.toggle_day": "Toggle {day}",
   "action.decrease": "Decrease {label}",
   "action.increase": "Increase {label}",
-  "action.edit_time": "Edit the alarm time",
-  "action.show_settings": "Show settings",
-  "action.hide_settings": "Hide settings",
+  "action.expand": "Expand",
+  "action.collapse": "Collapse",
 
   "label.no_alarm": "No alarm",
   "label.one_shot": "One-shot",
@@ -118,27 +107,19 @@ const en: Resource = {
   "unit.minute": "min",
   "unit.minutes_short": "min",
 
-  "error.no_device": "No alarm selected. Pick an alarm clock device in the card editor.",
-  "error.multiple_devices":
-    "There is more than one alarm clock. Pick one in the card editor.",
-  "error.device_not_found":
-    "The configured alarm no longer exists. Was it removed from the integrations page?",
-  "error.incomplete":
-    "The entities of this alarm could not be mapped. Are they disabled in the entity registry?",
   "error.unavailable": "This alarm is currently unavailable.",
   "error.no_alarms": "No alarm clocks found.",
 
-  "editor.device_id": "Alarm",
   "editor.devices": "Alarms (empty = all)",
-  "editor.name": "Name (optional)",
   "editor.title": "Title (optional)",
   "editor.show_days": "Show weekdays",
   "editor.show_next_alarm": "Show next alarm",
   "editor.show_settings": "Show settings",
-  "editor.settings_expanded": "Start with settings expanded",
   "editor.minute_step": "Minute step",
   "editor.show_test_button": "Show test button",
   "editor.hide_disabled": "Hide disabled alarms",
+  "editor.expandable": "Allow collapsing",
+  "editor.expanded": "Start rows expanded",
 };
 
 const RESOURCES: Record<string, Resource> = { de, en };

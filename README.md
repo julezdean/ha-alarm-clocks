@@ -7,7 +7,7 @@ Every alarm clock is its own device with its own entities. Adding another one
 is a single click on **Add integration**, with no configuration files and no
 restart.
 
-![The list card and the alarm card: armed, ringing, with the settings open and switched off](https://raw.githubusercontent.com/julezdean/ha-alarm-clocks/main/images/screenshot-cards.png)
+![The alarm clock card, collapsed as a compact list and with a row expanded to its full detail](https://raw.githubusercontent.com/julezdean/ha-alarm-clocks/main/images/screenshot-cards.png)
 
 ## How it works
 
@@ -120,45 +120,38 @@ If Lovelace manages its resources through YAML, the integration does not write
 to that configuration. In that case the log names the URL to add manually as a
 JavaScript module.
 
-Two cards are included.
-
-### `custom:alarm-clocks-card`
-
-A single alarm clock with state, alarm time, weekdays and snooze and dismiss
-buttons.
+One card, `custom:alarm-clocks-card`, shows one or several alarm clocks. Each
+one is a row that can be collapsed to a compact line or expanded to its full
+detail: alarm time, weekdays, settings, snooze and dismiss.
 
 ```yaml
 type: custom:alarm-clocks-card
-device_id: <device ID of the alarm clock>
+devices: []          # empty = all alarm clocks
 title: Bedroom
+hide_disabled: false
 show_days: true
 show_next_alarm: true
 show_settings: true
-settings_expanded: false
 show_test_button: false
 minute_step: 5
+expandable: true
+expanded: false
 ```
 
-Every field except `device_id` is optional, and the card can be configured
-entirely through the graphical card editor. If there is exactly one alarm
-clock, the card finds it by itself.
+Every field is optional, and the card can be configured entirely through the
+graphical card editor. With no `devices`, the card shows every alarm clock it
+finds; with exactly one, that row starts fully expanded like a dedicated
+detail card. `expandable` decides whether a row can be toggled by clicking it
+at all; `expanded` is either the fixed state of every row (`expandable:
+false`) or which row starts open (`expandable: true`, and only one row is
+open at a time — opening another closes the first).
 
-### `custom:alarm-clocks-list-card`
-
-All alarm clocks below each other.
-
-```yaml
-type: custom:alarm-clocks-list-card
-devices: []          # empty = all alarm clocks
-hide_disabled: false
-show_next_alarm: true
-```
-
-The cards talk to the integration through the services
+The card talks to the integration through the services
 `alarm_clocks.snooze`, `alarm_clocks.dismiss` and
-`alarm_clocks.trigger_alarm`, and find the entities of an alarm clock through
-the entity registry. If individual entities are disabled there, the card
-shows a corresponding hint.
+`alarm_clocks.trigger_alarm`, and finds the entities of an alarm clock through
+the entity registry. An alarm clock without any visible entities there — for
+example because they were all disabled — is left out of the card rather than
+shown broken.
 
 ## Services
 
@@ -255,11 +248,11 @@ your setup, an issue describing it is the more useful route.
 
 ## Development
 
-Nothing in this section is needed to use the integration. The Lovelace cards
-ship pre-built and are registered automatically, so there is no build step for
+Nothing in this section is needed to use the integration. The Lovelace card
+ships pre-built and is registered automatically, so there is no build step for
 users. This is only for working on the project itself.
 
-The integration lives in `custom_components/alarm_clocks`, the Lovelace cards
+The integration lives in `custom_components/alarm_clocks`, the Lovelace card
 in `card/`.
 
 ```bash
