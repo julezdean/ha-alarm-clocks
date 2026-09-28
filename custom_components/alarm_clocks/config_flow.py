@@ -76,6 +76,9 @@ class AlarmClockConfigFlow(ConfigFlow, domain=DOMAIN):
     # async_migrate_entry. A major version, so that an older release refuses
     # a migrated entry instead of silently running none of its actions.
     VERSION = 2
+    # Minor version 2 calls migrated scripts by their key; see
+    # async_migrate_entry.
+    MINOR_VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

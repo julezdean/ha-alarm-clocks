@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
 
 from custom_components.alarm_clocks.const import (
     CONF_ALARM_ACTIONS,
@@ -44,6 +45,7 @@ async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     assert result["options"][CONF_ALARM_ACTIONS] == []
     assert result["options"][CONF_POST_TIMEOUT] == DEFAULT_POST_TIMEOUT
     assert result["result"].version == 2
+    assert result["result"].minor_version == 2
 
 
 async def test_user_flow_duplicate_name_aborts(hass: HomeAssistant) -> None:
@@ -171,7 +173,7 @@ async def test_migration_turns_scripts_into_direct_calls(
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.LOADED
-    assert entry.version == 2
+    assert (entry.version, entry.minor_version) == (2, 2)
     assert entry.options[CONF_ALARM_ACTIONS] == [{"action": "script.music"}]
     assert entry.options[CONF_PRE_ACTIONS] == [{"action": "script.sunrise"}]
     assert entry.options[CONF_DISMISS_ACTIONS] == [{"action": "script.lights_off"}]
@@ -182,6 +184,72 @@ async def test_migration_turns_scripts_into_direct_calls(
         assert legacy not in entry.options
     # Everything the entities maintain is kept.
     assert entry.options[CONF_ALARM_TIME] == options[CONF_ALARM_TIME]
+
+
+def _register_script(hass: HomeAssistant, key: str, entity_id: str) -> None:
+    """A script entity whose key differs from its entity ID, as after a rename."""
+    registry = er.async_get(hass)
+    entry = registry.async_get_or_create("script", "script", key, suggested_object_id=key)
+    registry.async_update_entity(entry.entity_id, new_entity_id=entity_id)
+
+
+async def test_migration_calls_scripts_by_their_key(
+    hass: HomeAssistant, options: dict
+) -> None:
+    """A script's action is named after its key, not after its entity ID."""
+    _register_script(
+        hass, "wecker_alarm_schlafzimmer", "script.wecker_alarm_alexa_schlafzimmer"
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Alarm 1",
+        data={},
+        options={**options, "alarm_script": "script.wecker_alarm_alexa_schlafzimmer"},
+        version=1,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.options[CONF_ALARM_ACTIONS] == [
+        {"action": "script.wecker_alarm_schlafzimmer"}
+    ]
+
+
+async def test_migration_repairs_script_calls_from_beta_1(
+    hass: HomeAssistant, options: dict
+) -> None:
+    """Entries migrated by 3.0.0-beta.1 (2.1) get the script key; edits stay."""
+    _register_script(
+        hass, "wecker_alarm_schlafzimmer", "script.wecker_alarm_alexa_schlafzimmer"
+    )
+    _register_script(hass, "coffee", "script.coffee")
+    edited = [{"action": "script.wecker_alarm_alexa_schlafzimmer"}, {"delay": 5}]
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Alarm 1",
+        data={},
+        options={
+            **options,
+            CONF_ALARM_ACTIONS: [{"action": "script.wecker_alarm_alexa_schlafzimmer"}],
+            CONF_POST_ACTIONS: [{"action": "script.coffee"}],
+            CONF_DISMISS_ACTIONS: edited,
+            CONF_PRE_ACTIONS: [],
+            CONF_SNOOZE_ACTIONS: [],
+        },
+        version=2,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.minor_version == 2
+    assert entry.options[CONF_ALARM_ACTIONS] == [
+        {"action": "script.wecker_alarm_schlafzimmer"}
+    ]
+    assert entry.options[CONF_POST_ACTIONS] == [{"action": "script.coffee"}]
+    assert entry.options[CONF_DISMISS_ACTIONS] == edited
 
 
 async def test_migration_refuses_a_newer_version(

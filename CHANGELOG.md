@@ -14,9 +14,12 @@ changes** for what that changes in their behaviour.
 
 - The five script fields are replaced by one action sequence per phase. The
   config entry is migrated on the first start: every assigned script becomes
-  a sequence calling it directly (`action: script.x`). The entry moves to
-  version 2, which a 2.x release refuses to load; going back needs the backup
-  from before the update.
+  a sequence calling it directly (`action: script.<key>`), by the script's key
+  from the entity registry, which differs from its entity ID once that was
+  renamed. The entry moves to version 2, which a 2.x release refuses to load;
+  going back needs the backup from before the update. Entries migrated by
+  3.0.0-beta.1, which used the entity ID and so could call a script that does
+  not exist, are repaired on the first start as well.
 - Because the migrated scripts are called directly, switching the alarm clock
   off now stops every one of them that is still running, not only the alarm
   script. The post script is waited for as well: the post phase lasts until it

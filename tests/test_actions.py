@@ -227,6 +227,47 @@ async def test_stopping_the_alarm_actions_stops_a_directly_called_script(
     assert hass.states.get("script.music").state == "off"
 
 
+async def test_migrated_script_with_a_renamed_entity_runs_and_stops(
+    hass: HomeAssistant, options: dict[str, Any]
+) -> None:
+    """A 2.x script assignment keeps working when key and entity ID differ.
+
+    The case that broke in 3.0.0-beta.1: the script's key is
+    wecker_alarm_schlafzimmer, its entity ID was renamed, and the action
+    named after the entity ID did not exist.
+    """
+    assert await async_setup_component(
+        hass,
+        "script",
+        {"script": {"wecker_alarm_schlafzimmer": {"sequence": _long("music")}}},
+    )
+    er.async_get(hass).async_update_entity(
+        "script.wecker_alarm_schlafzimmer",
+        new_entity_id="script.wecker_alarm_alexa_schlafzimmer",
+    )
+    await hass.async_block_till_done()
+    entity_id = "script.wecker_alarm_alexa_schlafzimmer"
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Alarm 1",
+        data={},
+        options={**options, "alarm_script": entity_id},
+        version=1,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    await entry.runtime_data.async_trigger_alarm()
+    await _until(lambda: hass.states.get(entity_id).state == "on")
+    assert hass.states.get(entity_id).state == "on"
+
+    await entry.runtime_data.async_dismiss()
+    await _until(lambda: hass.states.get(entity_id).state == "off")
+    assert hass.states.get(entity_id).state == "off"
+
+
 async def test_stopping_the_alarm_actions_leaves_a_turned_on_script_running(
     hass: HomeAssistant, config_entry: MockConfigEntry
 ) -> None:

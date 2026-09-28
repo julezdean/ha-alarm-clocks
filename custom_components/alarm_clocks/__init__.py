@@ -230,14 +230,33 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+def _script_action(hass: HomeAssistant, entity_id: str) -> str:
+    """The action that calls a script entity directly.
+
+    A script's action is named after its key in scripts.yaml, not after its
+    entity ID; the two differ as soon as the entity ID was renamed or the key
+    chosen differently. The entity registry keeps the key as the unique ID,
+    and it is loaded before any script is. An entity missing from it keeps
+    its entity ID as the best guess.
+    """
+    entry = er.async_get(hass).async_get(entity_id)
+    if entry is not None and entry.platform == "script" and entry.unique_id:
+        return f"script.{entry.unique_id}"
+    return entity_id
+
+
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate an entry from the script fields to action sequences.
 
     Each assigned script becomes a sequence calling it directly
-    (``action: script.x``) rather than through ``script.turn_on``. A direct
+    (``action: script.<key>``) rather than through ``script.turn_on``. A direct
     call is stopped together with the sequence, which keeps the alarm script
     stopping on snooze and dismiss, and is what lets switching the alarm
     clock off stop every script it started.
+
+    Version 2.1 (3.0.0-beta.1) named the action after the entity ID instead
+    of the script's key, which calls nothing when the two differ; 2.2
+    repairs those calls.
     """
     if entry.version > 2:
         # Written by a newer release; this one cannot know its format.
@@ -248,13 +267,34 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for phase, legacy_key in LEGACY_SCRIPT_KEYS.items():
             script = options.pop(legacy_key, None)
             options[ACTION_KEYS[phase]] = (
-                [{"action": str(script)}]
+                [{"action": _script_action(hass, str(script))}]
                 if script not in (None, "", "none", "None")
                 else []
             )
         options.setdefault(CONF_POST_TIMEOUT, DEFAULT_POST_TIMEOUT)
-        hass.config_entries.async_update_entry(entry, options=options, version=2)
+        hass.config_entries.async_update_entry(
+            entry, options=options, version=2, minor_version=2
+        )
         _LOGGER.debug("%s: migrated the scripts to action sequences", entry.title)
+
+    if entry.version == 2 and entry.minor_version < 2:
+        options = dict(entry.options)
+        for key in ACTION_KEYS.values():
+            sequence = options.get(key)
+            # Only the exact shape the 2.1 migration wrote; a sequence the
+            # user has edited since is theirs.
+            if (
+                isinstance(sequence, list)
+                and len(sequence) == 1
+                and isinstance(sequence[0], dict)
+                and list(sequence[0]) == ["action"]
+                and str(sequence[0]["action"]).startswith("script.")
+            ):
+                options[key] = [
+                    {"action": _script_action(hass, str(sequence[0]["action"]))}
+                ]
+        hass.config_entries.async_update_entry(entry, options=options, minor_version=2)
+        _LOGGER.debug("%s: repaired the migrated script calls", entry.title)
 
     return True
 
