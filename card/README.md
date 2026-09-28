@@ -50,12 +50,16 @@ With no `devices`, the card shows every alarm clock it finds, sorted by name,
 each with the options below. Every option can also be set per alarm, to
 override the card for just that one — see
 [Per-alarm overrides](#per-alarm-overrides). The visual editor reflects this:
-the card-wide options are their own form at the top, and past that is a list
-of alarms, each opened through its own pencil icon into a detail page rather
-than an inline form. A field left blank there is not "off" — it shows what it
-actually resolves to (the alarm's own value, else the card's, else the
-default in the table below), and only the one field you actually change is
-written, so everything else keeps following the card if it later changes.
+below the title, the card-wide options sit under their own "Defaults for every
+alarm" heading, and past that is a list of alarms, each opened through its own
+pencil icon into a detail page rather than an inline form. A field there is
+not "off" just because the alarm leaves it unset — it shows what it actually
+resolves to (the alarm's own value, else the card's, else the default in the
+table below), and only the one field you actually change is written, so
+everything else keeps following the card if it later changes. Underneath,
+"Set on this alarm" lists the fields the alarm does set itself; tapping one
+removes it again, so the alarm goes back to following the card. The picker
+for adding an alarm only offers the ones not yet in the card.
 
 ### Options
 

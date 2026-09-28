@@ -144,9 +144,10 @@ be expanded at all and which one starts open — can be set once on the card as
 the default for every alarm, and overridden per alarm, so a mix of
 always-open, always-collapsed and togglable alarms can still sit in one card.
 Whether opening one togglable row closes the others is a card-wide choice.
-The visual editor is built for exactly this: the card-wide defaults are their
-own form at the top, and past that is a list of alarms, each opened through
-its own pencil icon into a detail page rather than an inline form. Details and
+The visual editor is built for exactly this: the card-wide defaults have their
+own section at the top, and past that is a list of alarms, each opened through
+its own pencil icon into a detail page that also lists what that alarm sets
+itself and lets you drop each back to the default. Details and
 every field are in [card/README.md](card/README.md).
 
 The card talks to the integration through the services

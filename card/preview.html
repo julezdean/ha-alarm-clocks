@@ -419,6 +419,8 @@
         // Real MDI path data.
         "mdi:plus": "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
         "mdi:minus": "M19,13H5V11H19V13Z",
+        "mdi:close":
+          "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
         "mdi:chevron-up": "M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z",
         "mdi:chevron-down": "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
         "mdi:alert-circle-outline":
@@ -567,6 +569,16 @@
               control.addEventListener("change", () =>
                 this._emit(item.name, control.value === "" ? undefined : Number(control.value)),
               );
+            } else if ("select" in selector) {
+              control = document.createElement("select");
+              control.appendChild(new Option("—", ""));
+              for (const option of selector.select.options ?? []) {
+                const value = typeof option === "string" ? option : option.value;
+                const text = typeof option === "string" ? option : option.label;
+                control.appendChild(new Option(text, value));
+              }
+              control.value = this._data[item.name] ?? "";
+              control.addEventListener("change", () => this._emit(item.name, control.value || undefined));
             } else if ("device" in selector) {
               control = document.createElement("select");
               control.multiple = Boolean(selector.device.multiple);

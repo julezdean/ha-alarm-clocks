@@ -69,6 +69,14 @@ const de: Resource = {
   "editor.remove_device": "Entfernen",
   "editor.back": "Zurück",
   "editor.pick_device": "Wecker auswählen",
+  "editor.all_devices_added": "Alle Wecker sind bereits in der Karte.",
+  "editor.defaults_heading": "Standard für alle Wecker",
+  "editor.defaults_hint":
+    "Gilt für jeden Wecker, der es nicht selbst festlegt. Das geht pro Wecker über den Stift in der Liste darunter.",
+  "editor.overrides_heading": "Für diesen Wecker festgelegt",
+  "editor.overrides_hint": "Antippen, um wieder dem Standard der Karte zu folgen.",
+  "editor.overrides_none": "Nichts: dieser Wecker folgt überall dem Standard der Karte.",
+  "editor.reset_override": "{label}: wieder dem Standard folgen",
 };
 
 const en: Resource = {
@@ -138,6 +146,14 @@ const en: Resource = {
   "editor.remove_device": "Remove",
   "editor.back": "Back",
   "editor.pick_device": "Pick an alarm clock",
+  "editor.all_devices_added": "Every alarm clock is already in the card.",
+  "editor.defaults_heading": "Defaults for every alarm",
+  "editor.defaults_hint":
+    "Applies to every alarm that does not set it itself, which each one can through its pencil icon in the list below.",
+  "editor.overrides_heading": "Set on this alarm",
+  "editor.overrides_hint": "Tap one to follow the card's default again.",
+  "editor.overrides_none": "Nothing: this alarm follows the card's default everywhere.",
+  "editor.reset_override": "{label}: follow the default again",
 };
 
 const RESOURCES: Record<string, Resource> = { de, en };

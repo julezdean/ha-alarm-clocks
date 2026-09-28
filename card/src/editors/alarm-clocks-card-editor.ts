@@ -8,10 +8,10 @@ import {
   cardOption,
   type DeviceOptionKey,
 } from "../cards/alarm-clocks-card";
-import { ALARM_CARD_EDITOR_TAG, ALARM_CLOCKS_DOMAIN } from "../const";
+import { ALARM_CARD_EDITOR_TAG } from "../const";
 import { fireEvent } from "../lib/actions";
-import { normalizeDeviceConfig } from "../lib/discovery";
-import { createLocalizer, type Localizer } from "../lib/localize";
+import { findMacaDevices, normalizeDeviceConfig } from "../lib/discovery";
+import { createLocalizer, languageOf, type Localizer } from "../lib/localize";
 import { controlStyles } from "../styles";
 import type { HomeAssistant, MacaAlarmCardConfig, MacaAlarmDeviceConfig } from "../types";
 
@@ -23,13 +23,20 @@ interface FormSchemaItem {
   schema?: FormSchemaItem[];
 }
 
+interface PickerOption {
+  value: string;
+  label: string;
+}
+
 const DEVICE_OPTION_KEYS = Object.keys(DEVICE_DEFAULTS) as DeviceOptionKey[];
 
-/** The card-wide defaults: title plus every option, as the fallback for any alarm.
+/** The card's own heading, the one field that is not a default for the alarms. */
+const TITLE_SCHEMA: FormSchemaItem[] = [{ name: "title", selector: { text: {} } }];
+
+/** The card-wide defaults, the fallback for any alarm that does not set its own.
  *  `expanded` is greyed out wherever the card would set it aside anyway. */
-function cardSchema(config: MacaAlarmCardConfig): FormSchemaItem[] {
+function defaultsSchema(config: MacaAlarmCardConfig): FormSchemaItem[] {
   return [
-    { name: "title", selector: { text: {} } },
     {
       name: "minute_step",
       selector: { number: { min: 1, max: 30, step: 1, mode: "box", unit_of_measurement: "min" } },
@@ -51,12 +58,15 @@ function cardSchema(config: MacaAlarmCardConfig): FormSchemaItem[] {
   ];
 }
 
-/** A single-field form: just the device picker, reused for the "add" slot and the detail page.
- *  HA's device selector has no way to leave out single devices, so an alarm already in the
- *  list still shows up here; picking it again is rejected where the change is handled. */
-const PICKER_SCHEMA: FormSchemaItem[] = [
-  { name: "device_id", selector: { device: { filter: { integration: ALARM_CLOCKS_DOMAIN } } } },
-];
+/**
+ * A plain dropdown rather than HA's device selector: that one can filter by
+ * integration but has no way to leave out single devices, so an alarm already
+ * in the list would be offered again. The options come from the same
+ * discovery the card uses, so it also offers nothing the card could not show.
+ */
+function pickerSchema(options: PickerOption[]): FormSchemaItem[] {
+  return [{ name: "device_id", selector: { select: { mode: "dropdown", options } } }];
+}
 
 /** The detail page: every option, for this one alarm. */
 const DEVICE_SCHEMA: FormSchemaItem[] = [
@@ -113,29 +123,48 @@ export class MacaAlarmCardEditor extends LitElement {
       return this._renderDetail(editing, this._editingIndex!, localize);
     }
 
+    const resolved = this._resolvedCardData();
+    const addOptions = this._pickerOptions();
+
     return html`
       <ha-form
         .hass=${this.hass}
-        .data=${this._resolvedCardData()}
-        .schema=${cardSchema(this._config)}
+        .data=${resolved}
+        .schema=${TITLE_SCHEMA}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
 
-      <div class="devices">
+      <div class="section defaults">
+        <span class="heading">${localize("editor.defaults_heading")}</span>
+        <span class="hint">${localize("editor.defaults_hint")}</span>
+        <ha-form
+          .hass=${this.hass}
+          .data=${resolved}
+          .schema=${defaultsSchema(this._config)}
+          .computeLabel=${this._computeLabel}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+      </div>
+
+      <div class="section devices">
         <span class="heading">${localize("editor.devices")}</span>
         ${devices.map((entry, index) => this._renderDeviceRow(entry, index, localize))}
-        <div class="device-row add-row">
-          <ha-form
-            class="picker"
-            .hass=${this.hass}
-            .data=${{ device_id: undefined }}
-            .schema=${PICKER_SCHEMA}
-            .computeLabel=${this._computeLabel}
-            @value-changed=${this._onAddDeviceChanged}
-          ></ha-form>
-          <ha-icon icon="mdi:plus" aria-label=${localize("editor.add_device")}></ha-icon>
-        </div>
+        ${addOptions.length
+          ? html`
+              <div class="device-row add-row">
+                <ha-form
+                  class="picker"
+                  .hass=${this.hass}
+                  .data=${{ device_id: undefined }}
+                  .schema=${pickerSchema(addOptions)}
+                  .computeLabel=${this._computeLabel}
+                  @value-changed=${this._onAddDeviceChanged}
+                ></ha-form>
+                <ha-icon icon="mdi:plus" aria-label=${localize("editor.add_device")}></ha-icon>
+              </div>
+            `
+          : html`<span class="hint">${localize("editor.all_devices_added")}</span>`}
       </div>
     `;
   }
@@ -193,7 +222,8 @@ export class MacaAlarmCardEditor extends LitElement {
     `;
   }
 
-  /** The detail page for one alarm: a back arrow, the device picker, every option. */
+  /** The detail page for one alarm: a back arrow, the device picker, every option,
+   *  and which of them this alarm sets itself rather than taking from the card. */
   private _renderDetail(
     entry: MacaAlarmDeviceConfig,
     index: number,
@@ -202,6 +232,7 @@ export class MacaAlarmCardEditor extends LitElement {
     const resolved = this._resolvedDeviceData(entry);
     const onChanged = (event: CustomEvent<{ value: MacaAlarmDeviceConfig }>): void =>
       this._onDeviceChanged(index, resolved, event);
+    const overridden = DEVICE_OPTION_KEYS.filter((key) => entry[key] !== undefined);
 
     return html`
       <div class="detail-header">
@@ -219,7 +250,7 @@ export class MacaAlarmCardEditor extends LitElement {
       <ha-form
         .hass=${this.hass}
         .data=${resolved}
-        .schema=${PICKER_SCHEMA}
+        .schema=${pickerSchema(this._pickerOptions(index))}
         .computeLabel=${this._computeLabel}
         @value-changed=${onChanged}
       ></ha-form>
@@ -230,6 +261,33 @@ export class MacaAlarmCardEditor extends LitElement {
         .computeLabel=${this._computeDeviceLabel}
         @value-changed=${onChanged}
       ></ha-form>
+
+      <div class="section overrides">
+        <span class="heading">${localize("editor.overrides_heading")}</span>
+        ${overridden.length
+          ? html`
+              <span class="hint">${localize("editor.overrides_hint")}</span>
+              <div class="chips">
+                ${overridden.map((key) => {
+                  const label = this._computeDeviceLabel({ name: key });
+                  const action = localize("editor.reset_override", { label });
+                  return html`
+                    <button
+                      type="button"
+                      class="chip"
+                      aria-label=${action}
+                      title=${action}
+                      @click=${() => this._resetOverride(index, key)}
+                    >
+                      <span>${label}</span>
+                      <ha-icon icon="mdi:close"></ha-icon>
+                    </button>
+                  `;
+                })}
+              </div>
+            `
+          : html`<span class="hint">${localize("editor.overrides_none")}</span>`}
+      </div>
     `;
   }
 
@@ -241,6 +299,24 @@ export class MacaAlarmCardEditor extends LitElement {
       .map((entry) => entry.device_id);
   }
 
+  /**
+   * Every alarm clock not yet in the card, sorted by name. With `excludeIndex`
+   * (a detail page), that entry's own device stays in, even when discovery no
+   * longer finds it, so the field never shows an empty value for a set one.
+   */
+  private _pickerOptions(excludeIndex?: number): PickerOption[] {
+    const used = new Set(this._usedDeviceIds(excludeIndex));
+    const ids = findMacaDevices(this.hass!).filter((id) => !used.has(id));
+    const own = excludeIndex !== undefined ? this._config?.devices?.[excludeIndex] : undefined;
+    const ownId = own !== undefined ? normalizeDeviceConfig(own).device_id : undefined;
+    if (ownId && !ids.includes(ownId)) {
+      ids.push(ownId);
+    }
+    return ids
+      .map((id) => ({ value: id, label: this._deviceLabel({ device_id: id }) }))
+      .sort((a, b) => a.label.localeCompare(b.label, languageOf(this.hass)));
+  }
+
   private _deviceLabel(entry: MacaAlarmDeviceConfig): string {
     if (entry.name) {
       return entry.name;
@@ -249,7 +325,7 @@ export class MacaAlarmCardEditor extends LitElement {
     return device?.name_by_user || device?.name || entry.device_id;
   }
 
-  private _computeLabel = (schema: FormSchemaItem): string => {
+  private _computeLabel = (schema: Pick<FormSchemaItem, "name">): string => {
     const localize = createLocalizer(this.hass);
     if (schema.name === "device_id") {
       return localize("editor.pick_device");
@@ -258,7 +334,7 @@ export class MacaAlarmCardEditor extends LitElement {
   };
 
   /** Same as `_computeLabel`, but "expanded" reads as this one alarm's own state. */
-  private _computeDeviceLabel = (schema: FormSchemaItem): string => {
+  private _computeDeviceLabel = (schema: Pick<FormSchemaItem, "name">): string => {
     if (schema.name === "expanded") {
       return createLocalizer(this.hass)("editor.device_expanded");
     }
@@ -307,15 +383,19 @@ export class MacaAlarmCardEditor extends LitElement {
     if (!key) {
       return;
     }
-    const value = (event.detail.value as unknown as Record<string, unknown>)[key];
-    if (key === "device_id" && this._usedDeviceIds(index).includes(value as string)) {
-      // Already in the list under another entry. Re-render so the picker
-      // snaps back to this entry's own device instead of showing the rejected pick.
-      this.requestUpdate();
-      return;
-    }
     const devices = (this._config?.devices ?? []).map(normalizeDeviceConfig);
-    devices[index] = { ...devices[index], [key]: value };
+    devices[index] = {
+      ...devices[index],
+      [key]: (event.detail.value as unknown as Record<string, unknown>)[key],
+    };
+    this._updateDevices(devices);
+  }
+
+  /** Drop this alarm's own value for `key`, so it follows the card again. */
+  private _resetOverride(index: number, key: DeviceOptionKey): void {
+    const devices = (this._config?.devices ?? []).map(normalizeDeviceConfig);
+    const { [key]: _dropped, ...rest } = devices[index];
+    devices[index] = rest as MacaAlarmDeviceConfig;
     this._updateDevices(devices);
   }
 
@@ -330,11 +410,6 @@ export class MacaAlarmCardEditor extends LitElement {
     event.stopPropagation();
     const deviceId = event.detail.value.device_id;
     if (!deviceId) {
-      return;
-    }
-    if (this._usedDeviceIds().includes(deviceId)) {
-      // Already in the list; re-render so the picker goes back to empty.
-      this.requestUpdate();
       return;
     }
     const devices = [...(this._config?.devices ?? []).map(normalizeDeviceConfig), { device_id: deviceId }];
@@ -355,7 +430,7 @@ export class MacaAlarmCardEditor extends LitElement {
         display: block;
       }
 
-      .devices {
+      .section {
         display: flex;
         flex-direction: column;
         gap: 6px;
@@ -363,8 +438,15 @@ export class MacaAlarmCardEditor extends LitElement {
       }
 
       .heading {
+        color: var(--primary-text-color);
+        font-size: 0.95rem;
+        font-weight: 500;
+      }
+
+      .hint {
         color: var(--secondary-text-color);
         font-size: 0.82rem;
+        line-height: 1.35;
       }
 
       .device-row {
@@ -415,6 +497,36 @@ export class MacaAlarmCardEditor extends LitElement {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 1px solid var(--divider-color);
+        border-radius: 16px;
+        padding: 4px 6px 4px 12px;
+        background: none;
+        color: var(--primary-text-color);
+        font: inherit;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+
+      .chip ha-icon {
+        --mdc-icon-size: 16px;
+        color: var(--secondary-text-color);
+      }
+
+      .chip:hover,
+      .chip:focus-visible {
+        border-color: var(--primary-color);
       }
     `,
   ];
