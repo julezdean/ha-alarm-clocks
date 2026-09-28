@@ -7,11 +7,11 @@ versioning [Semantic Versioning](https://semver.org/).
 ## [2.0.0] - 2026-09-28
 
 The two Lovelace cards are now one, and its configuration changed with it.
-Dashboards set up with 1.x need their cards adjusted, see **Migrating from
-1.x** below. The integration itself, its entities, services and events are
-unchanged apart from the addition to `alarm_clocks.dismiss`.
+Dashboards set up with 1.x need their cards adjusted, see **Breaking
+changes** below. The integration itself, its entities, services and events
+are unchanged apart from the addition to `alarm_clocks.dismiss`.
 
-### Migrating from 1.x
+### Breaking changes
 
 - `custom:alarm-clocks-list-card` no longer exists and shows as an unknown
   custom element. Use `custom:alarm-clocks-card` with `expandable: false`;
