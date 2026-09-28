@@ -137,7 +137,7 @@
     },
     "dismiss": {
       "name": "Dismiss",
-      "description": "Stops a ringing alarm or a running snooze and starts the post action."
+      "description": "Stops a ringing alarm or a running snooze and starts the post action. During the pre phase it skips this one occurrence; while the post action is pending it skips the post script."
     },
     "trigger_alarm": {
       "name": "Trigger alarm",

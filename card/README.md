@@ -209,6 +209,11 @@ The resource is not loaded. Check the resource entry (the type has to be
 *JavaScript module*) and hard reload the browser. On iOS, "Reset app data" in
 the companion app helps as well.
 
+**"Custom element doesn't exist: alarm-clocks-list-card"**
+That card was folded into `custom:alarm-clocks-card` in 2.0.0. Use that type
+with `expandable: false` for the same compact list; the
+[changelog](../CHANGELOG.md) has the full migration from 1.x.
+
 **An alarm clock I expect isn't showing up**
 An alarm clock with no visible Alarm Clocks entities is left out rather than
 shown broken. Its entities are usually disabled under **Settings → Devices &
