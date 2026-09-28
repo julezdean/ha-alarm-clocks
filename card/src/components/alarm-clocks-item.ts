@@ -119,8 +119,8 @@ export class MacaAlarmItem extends LitElement {
               <button
                 type="button"
                 class="icon-btn danger-icon"
-                aria-label=${localize(this._dismissLabelKey(view))}
-                title=${localize(this._dismissLabelKey(view))}
+                aria-label=${localize("action.dismiss")}
+                title=${localize("action.dismiss")}
                 @click=${() => this._dismiss(view)}
               >
                 <ha-icon icon="mdi:alarm-off"></ha-icon>
@@ -131,26 +131,42 @@ export class MacaAlarmItem extends LitElement {
     `;
   }
 
-  /** "Dismiss" while ringing or snoozed; "Cancel" while only the pre or post phase is running. */
-  private _dismissLabelKey(view: AlarmView): "action.dismiss" | "action.cancel" {
-    return view.status === STATUS.RINGING || view.status === STATUS.SNOOZED
-      ? "action.dismiss"
-      : "action.cancel";
-  }
-
   private _subtitle(view: AlarmView, localize: Localizer, language: string): string {
-    if (view.status === STATUS.RINGING || view.status === STATUS.POST_PENDING) {
-      return localize(`status.${view.status}`);
+    const status = localize(`status.${view.status}`);
+    if (!this.showNextAlarm) {
+      return status;
     }
-    if (!this.showNextAlarm || !view.nextAlarm) {
-      return localize(`status.${view.status}`);
+    // The pre and the post phase name themselves, followed by the time left
+    // until the point they lead up to: the alarm, or the post actions.
+    const phaseTarget = this._phaseTarget(view);
+    if (phaseTarget) {
+      return `${status} · ${formatRelative(phaseTarget, this.now, localize)}`;
+    }
+    if (
+      view.status === STATUS.RINGING ||
+      view.status === STATUS.POST_PENDING ||
+      view.status === STATUS.POST_ACTIVE ||
+      !view.nextAlarm
+    ) {
+      return status;
     }
     if (view.status === STATUS.SNOOZED) {
-      return `${localize("status.snoozed")} · ${localize("label.until", {
+      return `${status} · ${localize("label.until", {
         time: formatClock(view.nextAlarm, language),
       })}`;
     }
     return formatRelative(view.nextAlarm, this.now, localize);
+  }
+
+  /** What the pre phase or a pending post phase counts down to, if known. */
+  private _phaseTarget(view: AlarmView): Date | undefined {
+    if (view.status === STATUS.PRE_ACTIVE) {
+      return view.nextAlarm;
+    }
+    if (view.status === STATUS.POST_PENDING) {
+      return view.postDue;
+    }
+    return undefined;
   }
 
   // -- expanded -----------------------------------------------------------
@@ -263,8 +279,12 @@ export class MacaAlarmItem extends LitElement {
       return html`<span class="primary">${since}</span>`;
     }
 
-    if (view.status === STATUS.POST_PENDING) {
-      return html`<span class="primary">${localize("label.post_pending")}</span>`;
+    if (view.status === STATUS.POST_PENDING || view.status === STATUS.POST_ACTIVE) {
+      const status = localize(`status.${view.status}`);
+      const phaseTarget = this._phaseTarget(view);
+      return phaseTarget
+        ? html`<span class="primary">${status} · ${formatRelative(phaseTarget, this.now, localize)}</span>`
+        : html`<span class="primary">${status}</span>`;
     }
 
     if (!view.nextAlarm) {
@@ -316,7 +336,7 @@ export class MacaAlarmItem extends LitElement {
           : nothing}
         ${view.canDismiss
           ? html`<button type="button" class="btn danger" @click=${() => this._dismiss(view)}>
-              <ha-icon icon="mdi:alarm-off"></ha-icon>${localize(this._dismissLabelKey(view))}
+              <ha-icon icon="mdi:alarm-off"></ha-icon>${localize("action.dismiss")}
             </button>`
           : nothing}
         ${showTest
@@ -471,7 +491,8 @@ export class MacaAlarmItem extends LitElement {
 
       .item.status-armed,
       .item.status-pre_active,
-      .item.status-post_pending {
+      .item.status-post_pending,
+      .item.status-post_active {
         --status-color: var(--alarm-clocks-armed);
       }
 

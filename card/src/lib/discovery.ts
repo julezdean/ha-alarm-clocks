@@ -24,6 +24,7 @@ export type RoleKey =
   | "nextAlarm"
   | "status"
   | "snoozeUntil"
+  | "postDue"
   | "snoozeButton"
   | "dismissButton"
   | "day0"
@@ -46,6 +47,7 @@ const ROLE_BY_REGISTRY_KEY: Record<string, RoleKey> = {
   "sensor.next_alarm": "nextAlarm",
   "sensor.state": "status",
   "sensor.snooze_until": "snoozeUntil",
+  "sensor.post_due": "postDue",
   "button.snooze": "snoozeButton",
   "button.dismiss": "dismissButton",
   ...Object.fromEntries(

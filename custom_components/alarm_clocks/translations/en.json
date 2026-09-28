@@ -26,23 +26,58 @@
   "options": {
     "step": {
       "init": {
-        "title": "Scripts",
-        "description": "All script fields are optional. Leave a field empty to skip that step.",
+        "title": "Actions",
+        "description": "Pick the phase whose actions you want to edit. Every phase is optional: without actions it still fires its event. The actions get the event data as variables (name, device_id, entry_id and the data of the phase), plus phase.",
+        "menu_options": {
+          "pre": "Pre phase",
+          "alarm": "Alarm",
+          "snooze": "Snooze",
+          "dismiss": "Dismiss",
+          "post": "Post phase"
+        }
+      },
+      "pre": {
+        "title": "Pre actions",
+        "description": "Start the pre offset before the alarm time, in minutes. They keep running when the alarm starts and are only stopped when the alarm clock is switched off. A script called directly (action: script.x) is stopped with them; one started through script.turn_on keeps running.",
         "data": {
-          "alarm_script": "Alarm script",
-          "pre_script": "Pre script",
-          "post_script": "Post script",
-          "on_snooze_script": "Snooze script",
-          "on_dismiss_script": "Dismiss script"
+          "pre_actions": "Actions"
+        }
+      },
+      "alarm": {
+        "title": "Alarm actions",
+        "description": "Run while the alarm is ringing. They are stopped on snooze, on dismiss and when the alarm clock is switched off. A script called directly (action: script.x) is stopped with them; one started through script.turn_on keeps running.",
+        "data": {
+          "alarm_actions": "Actions"
+        }
+      },
+      "snooze": {
+        "title": "Snooze actions",
+        "description": "Run the moment the alarm is snoozed. They are only stopped when the alarm clock is switched off.",
+        "data": {
+          "snooze_actions": "Actions"
+        }
+      },
+      "dismiss": {
+        "title": "Dismiss actions",
+        "description": "Run the moment the alarm ends, also when it ends because the alarm clock was switched off while ringing or snoozing.",
+        "data": {
+          "dismiss_actions": "Actions"
+        }
+      },
+      "post": {
+        "title": "Post actions",
+        "description": "Start the post delay after the dismiss, in minutes. Until they are done the state is post_active; a one-shot alarm clock switches itself off only then. Switching the alarm clock off stops them. A script called directly (action: script.x) is stopped with them; one started through script.turn_on keeps running.",
+        "data": {
+          "post_actions": "Actions",
+          "post_timeout": "Time limit"
         },
         "data_description": {
-          "alarm_script": "Runs while the alarm is ringing and is stopped on snooze or dismiss.",
-          "pre_script": "Runs the configured number of minutes before the alarm time.",
-          "post_script": "Runs after the post offset once the alarm has been dismissed.",
-          "on_snooze_script": "Runs immediately when snoozing.",
-          "on_dismiss_script": "Runs immediately when dismissing."
+          "post_timeout": "Post actions still running after this many minutes are stopped, so that a sequence that never ends cannot keep a one-shot alarm clock switched on."
         }
       }
+    },
+    "error": {
+      "invalid_actions": "These actions are invalid. The log names the reason."
     }
   },
   "entity": {
@@ -82,10 +117,10 @@
         "name": "Snooze duration"
       },
       "pre_offset": {
-        "name": "Pre script offset"
+        "name": "Pre offset"
       },
       "post_offset": {
-        "name": "Post script delay"
+        "name": "Post delay"
       },
       "auto_dismiss": {
         "name": "Auto dismiss after"
@@ -103,6 +138,9 @@
       "snooze_until": {
         "name": "Snooze until"
       },
+      "post_due": {
+        "name": "Post actions due"
+      },
       "state": {
         "name": "Status",
         "state": {
@@ -111,7 +149,8 @@
           "ringing": "Ringing",
           "snoozed": "Snoozed",
           "pre_active": "Pre phase",
-          "post_pending": "Post action pending"
+          "post_pending": "Post actions pending",
+          "post_active": "Post actions running"
         }
       }
     },
@@ -137,7 +176,7 @@
     },
     "dismiss": {
       "name": "Dismiss",
-      "description": "Stops a ringing alarm or a running snooze and starts the post action. During the pre phase it skips this one occurrence; while the post action is pending it skips the post script."
+      "description": "Stops a ringing alarm or a running snooze and starts the post phase. It has no effect during the pre and the post phase; only switching the alarm clock off ends those."
     },
     "trigger_alarm": {
       "name": "Trigger alarm",

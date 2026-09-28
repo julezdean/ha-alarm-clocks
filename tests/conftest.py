@@ -53,6 +53,8 @@ def config_entry(options: dict[str, Any]) -> MockConfigEntry:
         data={},
         options=options,
         unique_id="wecker_1",
+        version=2,
+        minor_version=2,
     )
 
 

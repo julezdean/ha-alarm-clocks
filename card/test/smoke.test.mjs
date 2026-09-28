@@ -69,6 +69,7 @@ function addDeviceEntities(entities, states, id, slug, opts = {}) {
   add(`sensor.${slug}_nachster_alarm`, "next_alarm", new Date(Date.now() + 7_200_000).toISOString());
   add(`sensor.${slug}_status`, "state", opts.status ?? (opts.enabled === false ? "disabled" : "armed"));
   add(`sensor.${slug}_snooze_bis`, "snooze_until", "unknown");
+  add(`sensor.${slug}_post_aktionen_fallig`, "post_due", opts.postDue ?? "unknown");
   add(`button.${slug}_snooze`, "snooze", "unknown");
   add(`button.${slug}_dismiss`, "dismiss", "unknown");
 }
@@ -226,44 +227,63 @@ function check(name, fn) {
   card.remove();
 }
 
-// --- pre_active / post_pending: cancel instead of test ------------------------
-{
+// --- pre and post phase: state with time left, nothing to cancel -------------
+async function mountPhase(status, statesPatch = {}, deviceOptions = {}) {
   const { hass, calls } = makeHass({
-    states: { "sensor.wecker_1_status": { state: "pre_active" } },
+    states: { "sensor.wecker_1_status": { state: status }, ...statesPatch },
   });
   const card = await mount(
-    {
-      type: "custom:alarm-clocks-card",
-      devices: [{ device_id: DEVICE, expanded: true, show_test_button: true }],
-    },
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, ...deviceOptions }] },
     hass,
   );
-  check("pre_active: offers cancel, not the test button", () => {
-    const text = visibleText(card);
-    assert.match(text, /Abbrechen/);
-    assert.doesNotMatch(text, /Testen/);
+  return { card, calls };
+}
+
+{
+  const { card } = await mountPhase("pre_active");
+  check("pre_active: collapsed row shows the phase and the time to the alarm", () => {
+    assert.match(visibleText(card), /Vorlauf · in 2 Std\./);
   });
-  check("pre_active: cancel calls alarm_clocks.dismiss on the device", () => {
-    deepQuery(card.shadowRoot, ".actions .btn.danger").click();
-    assert.deepEqual(calls.at(-1), ["alarm_clocks", "dismiss", {}, { device_id: DEVICE }]);
+  check("pre_active: no dismiss button, the pre phase cannot be cancelled", () => {
+    assert.equal(deepQuery(card.shadowRoot, ".row-actions"), null);
+    assert.ok(deepQuery(card.shadowRoot, ".toggle"));
   });
   card.remove();
 }
 {
-  const { hass } = makeHass({
-    states: { "sensor.wecker_1_status": { state: "post_pending" } },
-  });
-  const card = await mount(
-    {
-      type: "custom:alarm-clocks-card",
-      devices: [{ device_id: DEVICE, expanded: true, show_test_button: true }],
-    },
-    hass,
-  );
-  check("post_pending: offers cancel, not the test button", () => {
+  const { card } = await mountPhase("pre_active", {}, { expanded: true, show_test_button: true });
+  check("pre_active expanded: test button instead of a cancel button", () => {
     const text = visibleText(card);
-    assert.match(text, /Abbrechen/);
-    assert.doesNotMatch(text, /Testen/);
+    assert.match(text, /Testen/);
+    assert.doesNotMatch(text, /Ausschalten|Abbrechen/);
+  });
+  card.remove();
+}
+{
+  const due = new Date(Date.now() + 8 * 60_000 - 20_000).toISOString(); // rounds up to 8
+  const { card } = await mountPhase("post_pending", {
+    "sensor.wecker_1_post_aktionen_fallig": { state: due },
+  });
+  check("post_pending: collapsed row shows the phase and the time to the post actions", () => {
+    assert.match(visibleText(card), /Nachlauf · in 8 Min\./);
+    assert.equal(deepQuery(card.shadowRoot, ".row-actions"), null);
+  });
+  card.remove();
+}
+{
+  const { card } = await mountPhase("post_pending");
+  check("post_pending without post_due: the phase alone", () => {
+    const sub = deepQuery(card.shadowRoot, ".sub").textContent.trim();
+    assert.equal(sub, "Nachlauf");
+  });
+  card.remove();
+}
+{
+  const { card } = await mountPhase("post_active", {}, { expanded: true, show_test_button: true });
+  check("post_active: named as running, nothing to cancel", () => {
+    const text = visibleText(card);
+    assert.match(text, /Nachlauf läuft/);
+    assert.doesNotMatch(text, /Ausschalten|Abbrechen/);
   });
   card.remove();
 }

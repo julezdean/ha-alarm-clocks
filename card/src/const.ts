@@ -21,6 +21,7 @@ export const STATUS = {
   SNOOZED: "snoozed",
   PRE_ACTIVE: "pre_active",
   POST_PENDING: "post_pending",
+  POST_ACTIVE: "post_active",
 } as const;
 
 export type AlarmStatus = (typeof STATUS)[keyof typeof STATUS] | "unknown";
@@ -34,5 +35,6 @@ export const STATUS_ICONS: Record<AlarmStatus, string> = {
   snoozed: "mdi:alarm-snooze",
   pre_active: "mdi:weather-sunset-up",
   post_pending: "mdi:clock-end",
+  post_active: "mdi:progress-clock",
   unknown: "mdi:alarm-note",
 };

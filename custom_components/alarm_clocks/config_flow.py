@@ -15,32 +15,35 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 from homeassistant.util import slugify
 
+from .actions import async_validate_actions
 from .const import (
-    CONF_ALARM_SCRIPT,
+    ACTION_KEYS,
     CONF_ALARM_TIME,
     CONF_AUTO_DISMISS,
     CONF_DAYS,
-    CONF_DISMISS_SCRIPT,
     CONF_ENABLED,
     CONF_POST_OFFSET,
-    CONF_POST_SCRIPT,
+    CONF_POST_TIMEOUT,
     CONF_PRE_OFFSET,
-    CONF_PRE_SCRIPT,
     CONF_SNOOZE_DURATION,
-    CONF_SNOOZE_SCRIPT,
     DEFAULT_ALARM_TIME,
     DEFAULT_AUTO_DISMISS,
     DEFAULT_DAYS,
     DEFAULT_NAME,
     DEFAULT_POST_OFFSET,
+    DEFAULT_POST_TIMEOUT,
     DEFAULT_PRE_OFFSET,
     DEFAULT_SNOOZE_DURATION,
     DOMAIN,
-    SCRIPT_KEYS,
+    MAX_POST_TIMEOUT,
+    MIN_POST_TIMEOUT,
+    PHASE_POST,
 )
+from .models import parse_actions
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,18 +64,21 @@ def _default_options() -> dict[str, Any]:
         CONF_PRE_OFFSET: DEFAULT_PRE_OFFSET,
         CONF_POST_OFFSET: DEFAULT_POST_OFFSET,
         CONF_AUTO_DISMISS: DEFAULT_AUTO_DISMISS,
-        CONF_ALARM_SCRIPT: "",
-        CONF_PRE_SCRIPT: "",
-        CONF_POST_SCRIPT: "",
-        CONF_SNOOZE_SCRIPT: "",
-        CONF_DISMISS_SCRIPT: "",
+        CONF_POST_TIMEOUT: DEFAULT_POST_TIMEOUT,
+        **{key: [] for key in ACTION_KEYS.values()},
     }
 
 
 class AlarmClockConfigFlow(ConfigFlow, domain=DOMAIN):
     """Set up a new alarm clock."""
 
-    VERSION = 1
+    # Version 2 replaced the script fields with action sequences; see
+    # async_migrate_entry. A major version, so that an older release refuses
+    # a migrated entry instead of silently running none of its actions.
+    VERSION = 2
+    # Minor version 2 calls migrated scripts by their key; see
+    # async_migrate_entry.
+    MINOR_VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -120,31 +126,92 @@ class AlarmClockConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class AlarmClockOptionsFlow(OptionsFlow):
-    """Configure the optional scripts."""
+    """Configure the action sequences, one phase per step."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Edit the script assignments."""
-        if user_input is not None:
-            # The values maintained by the entities (time, days, offsets)
-            # must be preserved.
-            options = {**self.config_entry.options}
-            for key in SCRIPT_KEYS:
-                options[key] = user_input.get(key, "") or ""
-            return self.async_create_entry(data=options)
+        """Pick the phase to edit."""
+        return self.async_show_menu(step_id="init", menu_options=list(ACTION_KEYS))
 
-        script_selector = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="script")
-        )
+    async def async_step_pre(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit the pre actions."""
+        return await self._async_step_phase("pre", user_input)
+
+    async def async_step_alarm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit the alarm actions."""
+        return await self._async_step_phase("alarm", user_input)
+
+    async def async_step_snooze(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit the snooze actions."""
+        return await self._async_step_phase("snooze", user_input)
+
+    async def async_step_dismiss(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit the dismiss actions."""
+        return await self._async_step_phase("dismiss", user_input)
+
+    async def async_step_post(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit the post actions and their time limit."""
+        return await self._async_step_phase("post", user_input)
+
+    async def _async_step_phase(
+        self, phase: str, user_input: dict[str, Any] | None
+    ) -> ConfigFlowResult:
+        """Show and store the action sequence of one phase."""
+        key = ACTION_KEYS[phase]
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            actions = parse_actions(user_input.get(key))
+            try:
+                if actions:
+                    await async_validate_actions(self.hass, actions)
+            except (vol.Invalid, HomeAssistantError) as err:
+                _LOGGER.debug("Invalid %s actions: %s", phase, err)
+                errors[key] = "invalid_actions"
+            else:
+                # The values maintained by the entities (time, days, offsets)
+                # and the other phases must be preserved. The raw sequence is
+                # stored: the validated one holds templates and is no JSON.
+                options = {**self.config_entry.options, key: actions}
+                if phase == PHASE_POST:
+                    options[CONF_POST_TIMEOUT] = int(
+                        user_input.get(CONF_POST_TIMEOUT, DEFAULT_POST_TIMEOUT)
+                    )
+                return self.async_create_entry(data=options)
+
         current = self.config_entry.options
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    key,
-                    description={"suggested_value": current.get(key) or None},
-                ): script_selector
-                for key in SCRIPT_KEYS
-            }
+        fields: dict[Any, Any] = {
+            vol.Optional(
+                key,
+                description={"suggested_value": current.get(key) or None},
+            ): selector.ActionSelector(),
+        }
+        if phase == PHASE_POST:
+            fields[
+                vol.Required(
+                    CONF_POST_TIMEOUT,
+                    default=current.get(CONF_POST_TIMEOUT, DEFAULT_POST_TIMEOUT),
+                )
+            ] = selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=MIN_POST_TIMEOUT,
+                    max=MAX_POST_TIMEOUT,
+                    step=1,
+                    unit_of_measurement="min",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            )
+        return self.async_show_form(
+            step_id=phase, data_schema=vol.Schema(fields), errors=errors
         )
-        return self.async_show_form(step_id="init", data_schema=schema)

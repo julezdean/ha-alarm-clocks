@@ -34,6 +34,8 @@ export interface AlarmView {
   alarmTime?: { hours: number; minutes: number };
   nextAlarm?: Date;
   snoozeUntil?: Date;
+  /** Start of the post actions while they are pending; absent without `sensor.<alarm>_post_due`. */
+  postDue?: Date;
   ringingSince?: Date;
   days: DayView[];
   isOneShot: boolean;
@@ -162,6 +164,7 @@ export function buildAlarmView(hass: HomeAssistant, deviceId: string): AlarmView
     alarmTime: parseTimeState(stateOf(hass, entities.alarmTime)),
     nextAlarm: parseTimestamp(stateOf(hass, entities.nextAlarm)),
     snoozeUntil: parseTimestamp(stateOf(hass, entities.snoozeUntil)),
+    postDue: parseTimestamp(stateOf(hass, entities.postDue)),
     ringingSince: ringingSince && !Number.isNaN(ringingSince.getTime()) ? ringingSince : undefined,
     days,
     isOneShot: days.every((day) => !day.active),
@@ -171,13 +174,9 @@ export function buildAlarmView(hass: HomeAssistant, deviceId: string): AlarmView
     canSnooze:
       (status === STATUS.RINGING || status === STATUS.SNOOZED) &&
       (settings.find((setting) => setting.role === "snoozeDuration")?.value ?? 0) > 0,
-    // `alarm_clocks.dismiss` also cancels a running pre phase or a pending
-    // post action, so the button stays available in those states too.
-    canDismiss:
-      status === STATUS.RINGING ||
-      status === STATUS.SNOOZED ||
-      status === STATUS.PRE_ACTIVE ||
-      status === STATUS.POST_PENDING,
+    // `alarm_clocks.dismiss` only ends ringing or snoozing; the pre and the
+    // post phase cannot be cancelled, only switching the alarm off ends them.
+    canDismiss: status === STATUS.RINGING || status === STATUS.SNOOZED,
     canTest: enabled && status !== STATUS.RINGING,
     incomplete: trackedEntityIds.length === 0,
   };

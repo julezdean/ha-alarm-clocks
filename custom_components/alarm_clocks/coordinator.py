@@ -12,8 +12,14 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_CORE_CONFIG_UPDATE, EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import CALLBACK_TYPE, CoreState, Event, HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError, ServiceNotFound
+from homeassistant.core import (
+    CALLBACK_TYPE,
+    Context,
+    CoreState,
+    Event,
+    HomeAssistant,
+    callback,
+)
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -24,6 +30,7 @@ from .const import (
     ATTR_DURATION,
     ATTR_ENTRY_ID,
     ATTR_NAME,
+    ATTR_PHASE,
     ATTR_SNOOZE_UNTIL,
     ATTR_SOURCE,
     CONF_ALARM_TIME,
@@ -35,6 +42,11 @@ from .const import (
     EVENT_POST_TRIGGER,
     EVENT_PRE_TRIGGER,
     EVENT_SNOOZED,
+    PHASE_ALARM,
+    PHASE_DISMISS,
+    PHASE_POST,
+    PHASE_PRE,
+    PHASE_SNOOZE,
     RESUME_GRACE,
     SOURCE_AUTO,
     SOURCE_CLEANUP,
@@ -43,6 +55,7 @@ from .const import (
     SOURCE_SNOOZE_END,
     STATE_ARMED,
     STATE_DISABLED,
+    STATE_POST_ACTIVE,
     STATE_POST_PENDING,
     STATE_PRE_ACTIVE,
     STATE_RINGING,
@@ -50,9 +63,11 @@ from .const import (
     TIMER_ALARM,
     TIMER_AUTO_DISMISS,
     TIMER_POST,
+    TIMER_POST_TIMEOUT,
     TIMER_PRE,
     TIMER_SNOOZE_END,
 )
+from .actions import AlarmClockActions
 from .models import RuntimeState, AlarmClockConfig, AlarmClockSnapshot
 from .store import AlarmClockStore
 
@@ -79,6 +94,11 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         self._timers: dict[str, CALLBACK_TYPE] = {}
         self._unsubs: list[CALLBACK_TYPE] = []
         self._device_id: str | None = None
+        self._actions = AlarmClockActions(hass, entry.title)
+        # Set while a one-shot alarm clock switches itself off at the end of
+        # its cycle, which unlike switching it off by hand aborts nothing.
+        self._self_disabling = False
+        self._unloading = False
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -86,6 +106,7 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
     async def async_setup(self) -> None:
         """Restore the state, register listeners and arm the timers."""
         self.runtime = RuntimeState.from_dict(await self._store.async_load())
+        await self._actions.async_update(self.config.actions)
 
         self._unsubs.append(
             self.hass.bus.async_listen(EVENT_CORE_CONFIG_UPDATE, self._handle_core_config)
@@ -94,8 +115,8 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         if self.hass.state is CoreState.running:
             await self._async_resume()
         else:
-            # Only resume after startup so that referenced scripts and
-            # entities are guaranteed to be loaded.
+            # Only resume after startup so that the scripts and entities the
+            # actions refer to are guaranteed to be loaded.
             self._unsubs.append(
                 self.hass.bus.async_listen_once(
                     EVENT_HOMEASSISTANT_STARTED, self._handle_started
@@ -104,7 +125,13 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
             self._async_push()
 
     async def async_shutdown(self) -> None:
-        """Tear down all timers and listeners."""
+        """Tear down all timers and listeners.
+
+        Running action sequences end with the entry's background tasks. The
+        runtime state is left as it is, so that the restart finds a post
+        phase that was cut short.
+        """
+        self._unloading = True
         self._async_cancel_timers()
         for unsub in self._unsubs:
             unsub()
@@ -127,7 +154,9 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         """Check the stored state and take over the scheduling.
 
         A snooze or a post action that was still pending when Home Assistant
-        stopped is picked up here, so it is not silently lost.
+        stopped is picked up here, so it is not silently lost. Post actions
+        that were cut short by the restart are not repeated; the cycle is
+        just finished.
         """
         now = dt_util.now()
 
@@ -151,25 +180,38 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
 
         if self.runtime.ringing:
             if self.config.enabled:
-                # The ringing survived a restart. The alarm script was killed
-                # in the process and is therefore started again; the auto
-                # dismiss deadline continues from its original point in time
-                # and is re-armed in _async_reschedule.
+                # The ringing survived a restart. The alarm actions were
+                # stopped in the process and are therefore started again; the
+                # auto dismiss deadline continues from its original point in
+                # time and is re-armed in _async_reschedule.
                 _LOGGER.info(
                     "%s: resuming the alarm after the restart",
                     self.config_entry.title,
                 )
-                await self._async_script_call("turn_on", self.config.alarm_script)
+                self._async_start_actions(
+                    PHASE_ALARM, self._payload({}), Context()
+                )
             else:
                 self.runtime.ringing = False
                 self.runtime.ringing_since = None
+
+        if self.runtime.post_active:
+            _LOGGER.info(
+                "%s: the post actions were cut short by the restart",
+                self.config_entry.title,
+            )
+            self.runtime.post_active = False
+            await self._async_save()
+            if self.config.enabled and self.config.is_one_shot:
+                await self._async_self_disable()
+                return
 
         if self.runtime.post_due_at and self.runtime.post_due_at <= now:
             _LOGGER.debug(
                 "%s: catching up the pending post action",
                 self.config_entry.title,
             )
-            await self._async_run_post()
+            await self._async_start_post()
             return
 
         await self._async_save()
@@ -204,18 +246,32 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
             return STATE_SNOOZED
         if not self.config.enabled:
             return STATE_DISABLED
-        if self.runtime.post_due_at is not None:
-            return STATE_POST_PENDING
+        # The next wake-up takes precedence over what is left of the last.
         if self.pre_active:
             return STATE_PRE_ACTIVE
+        if self.runtime.post_due_at is not None:
+            return STATE_POST_PENDING
+        if self.runtime.post_active:
+            return STATE_POST_ACTIVE
         return STATE_ARMED
+
+    @property
+    def one_shot_spent(self) -> bool:
+        """True once a one-shot alarm has rung and only its post phase is left.
+
+        It stays switched on until its post actions are done, but must not
+        ring a second time meanwhile.
+        """
+        return self.config.is_one_shot and (
+            self.runtime.post_due_at is not None or self.runtime.post_active
+        )
 
     @property
     def next_alarm(self) -> datetime | None:
         """Next alarm time; the end of a running snooze takes precedence."""
         if self.snooze_active:
             return self.runtime.snooze_until
-        if not self.config.enabled:
+        if not self.config.enabled or self.one_shot_spent:
             return None
         return self._next_regular_alarm(dt_util.now())
 
@@ -233,26 +289,21 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         """Calculate the next regular alarm time.
 
         If weekdays are selected, the next active weekday is used. Otherwise
-        the alarm counts as one-shot and fires today or tomorrow. An
-        occurrence at or before `runtime.skip_until` (a cancelled pre phase)
-        does not count, which is what pushes the search past it.
+        the alarm counts as one-shot and fires today or tomorrow.
         """
         alarm_time = self.config.alarm_time
-        reference = now
-        if self.runtime.skip_until is not None and self.runtime.skip_until > reference:
-            reference = self.runtime.skip_until
 
         if self.config.is_one_shot:
-            today = self._combine(reference, alarm_time)
+            today = self._combine(now, alarm_time)
             return (
                 today
-                if today > reference
-                else self._combine(reference + timedelta(days=1), alarm_time)
+                if today > now
+                else self._combine(now + timedelta(days=1), alarm_time)
             )
 
         for offset in range(8):
-            candidate = self._combine(reference + timedelta(days=offset), alarm_time)
-            if self.config.days[candidate.weekday()] and candidate > reference:
+            candidate = self._combine(now + timedelta(days=offset), alarm_time)
+            if self.config.days[candidate.weekday()] and candidate > now:
                 return candidate
         return None
 
@@ -319,25 +370,32 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         """Re-arm all timers based on the current state."""
         now = dt_util.now()
 
-        # A skip that has already passed cannot affect anything further out.
-        if self.runtime.skip_until is not None and self.runtime.skip_until <= now:
-            self.runtime.skip_until = None
-
-        next_regular = self._next_regular_alarm(now) if self.config.enabled else None
+        next_regular = (
+            self._next_regular_alarm(now)
+            if self.config.enabled and not self.one_shot_spent
+            else None
+        )
         self._async_set_timer(TIMER_ALARM, next_regular, self._handle_alarm)
 
-        # The pre phase ends when the alarm it belongs to is due.
-        if self.runtime.pre_until is not None and self.runtime.pre_until <= now:
-            self.runtime.pre_until = None
-
+        # The pre phase always belongs to the next regular alarm. When that
+        # moves (a new alarm time, a weekday, the pre offset), a running pre
+        # phase follows it as long as the new pre start has already passed.
+        # Otherwise it ends and starts over at the new pre start. Ending it
+        # only changes the state; its actions keep running, stopping them is
+        # reserved for switching the alarm clock off.
         pre_at: datetime | None = None
-        if next_regular and self.config.pre_offset > 0:
-            candidate = next_regular - timedelta(minutes=self.config.pre_offset)
-            if candidate > now:
-                pre_at = candidate
-            elif self.runtime.pre_until is None and next_regular > now:
-                # Scheduling changed inside a running pre phase, keep it.
-                self.runtime.pre_until = next_regular
+        pre_start = (
+            next_regular - timedelta(minutes=self.config.pre_offset)
+            if next_regular and self.config.pre_offset > 0
+            else None
+        )
+        if pre_start is None or next_regular is None:
+            self.runtime.pre_until = None
+        elif pre_start > now:
+            pre_at = pre_start
+            self.runtime.pre_until = None
+        elif self.runtime.pre_until is not None:
+            self.runtime.pre_until = next_regular
         self._async_set_timer(TIMER_PRE, pre_at, self._handle_pre)
 
         self._async_set_timer(
@@ -361,14 +419,10 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         """Apply changed options (idempotent)."""
         previous = self.config
         self.config = AlarmClockConfig.from_options(self.config_entry.options)
+        await self._actions.async_update(self.config.actions)
 
-        # Cleanup: disabling while ringing or snoozing ends the alarm.
-        if (
-            previous.enabled
-            and not self.config.enabled
-            and (self.runtime.ringing or self.snooze_active)
-        ):
-            await self.async_dismiss(source=SOURCE_CLEANUP)
+        if previous.enabled and not self.config.enabled and not self._self_disabling:
+            await self._async_abort()
             return
 
         self._async_reschedule()
@@ -432,15 +486,14 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         await self._async_start_ringing(source)
 
     async def _async_start_ringing(self, source: str) -> None:
-        """Set the ringing state and start the alarm script."""
+        """Set the ringing state and start the alarm actions."""
         self.runtime.ringing = True
         self.runtime.ringing_since = dt_util.now()
         self.runtime.snooze_until = None
         self.runtime.pre_until = None
         await self._async_save()
 
-        self._fire(EVENT_ALARM_TRIGGERED, {ATTR_SOURCE: source})
-        await self._async_script_call("turn_on", self.config.alarm_script)
+        self._async_fire_and_run(PHASE_ALARM, EVENT_ALARM_TRIGGERED, {ATTR_SOURCE: source})
 
         self._async_reschedule()
         self._async_push()
@@ -467,111 +520,160 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         self.runtime.snooze_until = dt_util.now() + timedelta(minutes=minutes)
         await self._async_save()
 
-        await self._async_script_call("turn_off", self.config.alarm_script)
-        self._fire(
+        await self._actions.async_stop(PHASE_ALARM)
+        self._async_fire_and_run(
+            PHASE_SNOOZE,
             EVENT_SNOOZED,
             {
                 ATTR_DURATION: minutes,
                 ATTR_SNOOZE_UNTIL: self.runtime.snooze_until.isoformat(),
             },
         )
-        await self._async_script_call("turn_on", self.config.snooze_script)
 
         self._async_reschedule()
         self._async_push()
 
     async def async_dismiss(self, source: str = SOURCE_MANUAL) -> None:
-        """Dismiss whatever is currently active.
+        """End a ringing alarm or a running snooze.
 
-        Ringing or snoozing: ends it, runs the dismiss script, and schedules
-        (or immediately runs) the post action, same as before. A pending post
-        action: skips the post script and finishes the cycle right away,
-        instead of waiting out the rest of the post offset. The pre phase:
-        cancels it; the alarm clock goes back to armed for its next regular
-        occurrence, unaffected. Outside all of these it is a no-op.
+        Stops the alarm actions, runs the dismiss actions and schedules the
+        post phase, or ends the cycle right away when there is none. In any
+        other state it is a no-op: the pre and the post phase cannot be
+        cancelled, only switching the alarm clock off ends them.
         """
-        if self.runtime.ringing or self.snooze_active:
-            self.runtime.ringing = False
-            self.runtime.ringing_since = None
-            self.runtime.snooze_until = None
-            self.runtime.pre_until = None
-            if self.config.post_offset > 0:
-                self.runtime.post_due_at = dt_util.now() + timedelta(
-                    minutes=self.config.post_offset
-                )
-            else:
-                self.runtime.post_due_at = None
-            await self._async_save()
-
-            await self._async_script_call("turn_off", self.config.alarm_script)
-            self._fire(EVENT_DISMISSED, {ATTR_SOURCE: source})
-            await self._async_script_call("turn_on", self.config.dismiss_script)
-
-            self._async_reschedule()
-            self._async_push()
-
-            # A post offset of zero disables the post action entirely. The
-            # one-shot alarm still has to disable itself, that is core logic
-            # and not part of the post action.
-            if self.config.post_offset <= 0:
-                await self._async_finish_cycle(run_post_action=False)
+        if not (self.runtime.ringing or self.snooze_active):
+            _LOGGER.debug(
+                "%s: dismiss ignored, nothing is ringing or snoozing",
+                self.config_entry.title,
+            )
             return
 
-        if self.runtime.post_due_at is not None:
-            self._fire(EVENT_DISMISSED, {ATTR_SOURCE: source})
-            await self._async_finish_cycle(run_post_action=False)
-            return
-
-        if self.pre_active:
-            # Cancelling only the pre phase is not enough: reschedule would
-            # otherwise see the same occurrence still ahead, inside its own
-            # pre-offset window, and re-enter the pre phase on the spot. The
-            # occurrence itself has to be skipped instead.
-            self.runtime.skip_until = self.runtime.pre_until
-            self.runtime.pre_until = None
-            await self._async_save()
-            self._fire(EVENT_DISMISSED, {ATTR_SOURCE: source})
-            self._async_reschedule()
-            self._async_push()
-            return
-
-        _LOGGER.debug(
-            "%s: dismiss ignored, nothing is ringing, snoozing or pending",
-            self.config_entry.title,
-        )
-
-    async def _async_run_post(self) -> None:
-        """Run the post action once the post offset has elapsed."""
-        await self._async_finish_cycle(run_post_action=True)
-
-    async def _async_finish_cycle(self, *, run_post_action: bool) -> None:
-        """End the alarm cycle: optional post action, then one-shot handling."""
-        self.runtime.post_due_at = None
+        self.runtime.ringing = False
+        self.runtime.ringing_since = None
+        self.runtime.snooze_until = None
+        self.runtime.pre_until = None
+        if self.config.post_offset > 0:
+            self.runtime.post_due_at = dt_util.now() + timedelta(
+                minutes=self.config.post_offset
+            )
+        else:
+            self.runtime.post_due_at = None
         await self._async_save()
 
-        if not self.config.enabled:
-            _LOGGER.debug(
-                "%s: end of cycle skipped, the alarm clock is disabled",
-                self.config_entry.title,
-            )
-            self._async_reschedule()
-            self._async_push()
-            return
+        await self._actions.async_stop(PHASE_ALARM)
+        self._async_fire_and_run(PHASE_DISMISS, EVENT_DISMISSED, {ATTR_SOURCE: source})
 
-        if run_post_action:
-            self._fire(EVENT_POST_TRIGGER, {})
-            await self._async_script_call("turn_on", self.config.post_script)
-
-        if self.config.is_one_shot:
-            _LOGGER.debug(
-                "%s: one-shot alarm clock disables itself after ringing",
-                self.config_entry.title,
-            )
-            await self.async_set_enabled(False)
+        # A post offset of zero disables the post phase entirely. The
+        # one-shot alarm still has to disable itself, that is core logic and
+        # not part of the post phase.
+        if self.config.post_offset <= 0:
+            await self._async_end_cycle()
             return
 
         self._async_reschedule()
         self._async_push()
+
+    async def _async_abort(self) -> None:
+        """The alarm clock was switched off: end every phase, stop every run.
+
+        A ringing or snoozing alarm is still dismissed properly, dismiss
+        actions included: stopping the alarm actions ends their steps, not
+        what they started, so music playing on a speaker would keep playing
+        without them. The dismissed event is fired once per cycle, so a
+        cycle that was dismissed already, and is only in its post phase,
+        ends without another one.
+        """
+        was_ringing = self.runtime.ringing or self.snooze_active
+        was_pre = self.pre_active
+
+        self.runtime.ringing = False
+        self.runtime.ringing_since = None
+        self.runtime.snooze_until = None
+        self.runtime.pre_until = None
+        self.runtime.post_due_at = None
+        self.runtime.post_active = False
+        await self._async_save()
+
+        self._async_set_timer(TIMER_POST_TIMEOUT, None, None)
+        await self._actions.async_stop_all()
+
+        if was_ringing:
+            self._async_fire_and_run(
+                PHASE_DISMISS, EVENT_DISMISSED, {ATTR_SOURCE: SOURCE_CLEANUP}
+            )
+        elif was_pre:
+            self._fire(EVENT_DISMISSED, {ATTR_SOURCE: SOURCE_CLEANUP})
+
+        self._async_reschedule()
+        self._async_push()
+
+    async def _async_start_post(self) -> None:
+        """The post offset has elapsed: start the post actions."""
+        self.runtime.post_due_at = None
+        self.runtime.post_active = True
+        await self._async_save()
+
+        variables, context = self._async_fire_with_context(EVENT_POST_TRIGGER, {})
+        if not self._actions.has_actions(PHASE_POST):
+            # Without post actions the post phase is over the moment it starts.
+            await self._async_post_finished()
+            return
+
+        self._async_set_timer(
+            TIMER_POST_TIMEOUT,
+            dt_util.now() + timedelta(minutes=self.config.post_timeout),
+            self._handle_post_timeout,
+        )
+        self.config_entry.async_create_background_task(
+            self.hass,
+            self._async_run_post_actions({**variables, ATTR_PHASE: PHASE_POST}, context),
+            f"{DOMAIN} {self.config_entry.title} post actions",
+        )
+
+        self._async_reschedule()
+        self._async_push()
+
+    async def _async_run_post_actions(
+        self, variables: dict[str, Any], context: Context
+    ) -> None:
+        """Run the post actions, then finish the cycle."""
+        await self._actions.async_run(PHASE_POST, variables, context)
+        await self._async_post_finished()
+
+    async def _async_post_finished(self) -> None:
+        """The post actions are done, stopped by their time limit or absent."""
+        if self._unloading or self.hass.is_stopping:
+            # Cut short by a restart, which _async_resume takes care of.
+            return
+        if not self.runtime.post_active:
+            # Switching the alarm clock off ended the post phase already.
+            return
+
+        self._async_set_timer(TIMER_POST_TIMEOUT, None, None)
+        self.runtime.post_active = False
+        await self._async_save()
+        await self._async_end_cycle()
+
+    async def _async_end_cycle(self) -> None:
+        """End the alarm cycle; a one-shot alarm clock switches itself off."""
+        if self.config.enabled and self.config.is_one_shot:
+            _LOGGER.debug(
+                "%s: one-shot alarm clock disables itself after its cycle",
+                self.config_entry.title,
+            )
+            await self._async_self_disable()
+            return
+
+        self._async_reschedule()
+        self._async_push()
+
+    async def _async_self_disable(self) -> None:
+        """Switch a one-shot alarm clock off without aborting anything."""
+        self._self_disabling = True
+        try:
+            await self.async_set_enabled(False)
+        finally:
+            self._self_disabling = False
 
     # ------------------------------------------------------------------
     # Timer handlers
@@ -594,14 +696,13 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
             return
 
         # The pre phase lasts until the alarm it belongs to is due. It also
-        # applies when no pre script is configured, so that the state does not
-        # depend on the configuration.
+        # applies when no pre actions are configured, so that the state does
+        # not depend on the configuration.
         alarm_at = self._next_regular_alarm(dt_util.now())
         self.runtime.pre_until = alarm_at
         await self._async_save()
 
-        self._fire(EVENT_PRE_TRIGGER, {})
-        await self._async_script_call("turn_on", self.config.pre_script)
+        self._async_fire_and_run(PHASE_PRE, EVENT_PRE_TRIGGER, {})
 
         self._async_reschedule()
         self._async_push()
@@ -620,7 +721,18 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
     async def _handle_post(self, _now: datetime) -> None:
         """The post offset has elapsed."""
         self._timers.pop(TIMER_POST, None)
-        await self._async_run_post()
+        await self._async_start_post()
+
+    async def _handle_post_timeout(self, _now: datetime) -> None:
+        """The post actions ran into their time limit."""
+        self._timers.pop(TIMER_POST_TIMEOUT, None)
+        _LOGGER.warning(
+            "%s: the post actions are still running after %s minutes and are stopped",
+            self.config_entry.title,
+            self.config.post_timeout,
+        )
+        # Stopping ends the run, which finishes the cycle as usual.
+        await self._actions.async_stop(PHASE_POST)
 
     async def _handle_core_config(self, _event: Event) -> None:
         """React to time zone changes and similar core configuration updates."""
@@ -634,42 +746,53 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    async def _async_script_call(self, service: str, entity_id: str | None) -> None:
-        """Start or stop an optional script."""
-        if not entity_id:
+    def _payload(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Event data: what identifies the alarm clock, plus the phase data."""
+        return {
+            ATTR_ENTRY_ID: self.config_entry.entry_id,
+            ATTR_DEVICE_ID: self.device_id,
+            ATTR_NAME: self.config_entry.title,
+            **data,
+        }
+
+    @callback
+    def _async_fire_with_context(
+        self, event_type: str, data: dict[str, Any]
+    ) -> tuple[dict[str, Any], Context]:
+        """Fire an event and return its data and context for the actions."""
+        payload = self._payload(data)
+        context = Context()
+        self.hass.bus.async_fire(event_type, payload, context=context)
+        return payload, context
+
+    @callback
+    def _async_fire_and_run(
+        self, phase: str, event_type: str, data: dict[str, Any]
+    ) -> None:
+        """Fire the event of a phase and start its actions.
+
+        The actions get the event data as variables, plus the phase, and
+        share the event's context, so the logbook ties them together.
+        """
+        payload, context = self._async_fire_with_context(event_type, data)
+        self._async_start_actions(phase, payload, context)
+
+    @callback
+    def _async_start_actions(
+        self, phase: str, payload: dict[str, Any], context: Context
+    ) -> None:
+        """Start the actions of a phase without waiting for them."""
+        if not self._actions.has_actions(phase):
             return
-        if self.hass.states.get(entity_id) is None:
-            _LOGGER.warning(
-                "%s: script %s does not exist and is skipped",
-                self.config_entry.title,
-                entity_id,
-            )
-            return
-        try:
-            await self.hass.services.async_call(
-                "script", service, {"entity_id": entity_id}, blocking=False
-            )
-        except (ServiceNotFound, HomeAssistantError) as err:
-            _LOGGER.error(
-                "%s: calling script.%s for %s failed: %s",
-                self.config_entry.title,
-                service,
-                entity_id,
-                err,
-            )
+        self.config_entry.async_create_background_task(
+            self.hass,
+            self._actions.async_run(phase, {**payload, ATTR_PHASE: phase}, context),
+            f"{DOMAIN} {self.config_entry.title} {phase} actions",
+        )
 
     @callback
     def _fire(self, event_type: str, data: dict[str, Any]) -> None:
-        """Fire an event on the HA event bus."""
-        self.hass.bus.async_fire(
-            event_type,
-            {
-                ATTR_ENTRY_ID: self.config_entry.entry_id,
-                ATTR_DEVICE_ID: self.device_id,
-                ATTR_NAME: self.config_entry.title,
-                **data,
-            },
-        )
-
+        """Fire an event on the HA event bus, without running any actions."""
+        self.hass.bus.async_fire(event_type, self._payload(data))
 
 type AlarmClockConfigEntry = ConfigEntry[AlarmClockCoordinator]

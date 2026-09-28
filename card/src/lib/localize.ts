@@ -9,11 +9,11 @@ const de: Resource = {
   "status.snoozed": "Schlummert",
   "status.pre_active": "Vorlauf",
   "status.post_pending": "Nachlauf",
+  "status.post_active": "Nachlauf läuft",
   "status.unknown": "Unbekannt",
 
   "action.snooze": "Schlummern",
   "action.dismiss": "Ausschalten",
-  "action.cancel": "Abbrechen",
   "action.test": "Testen",
   "action.enable": "Wecker einschalten",
   "action.disable": "Wecker ausschalten",
@@ -34,7 +34,6 @@ const de: Resource = {
   "label.auto_dismiss": "Auto-Aus",
   "label.ringing_since": "seit {duration}",
   "label.until": "bis {time}",
-  "label.post_pending": "Post-Aktion läuft",
   "label.off": "aus",
   "label.no_time": "--:--",
 
@@ -86,11 +85,11 @@ const en: Resource = {
   "status.snoozed": "Snoozed",
   "status.pre_active": "Pre phase",
   "status.post_pending": "Post action",
+  "status.post_active": "Post action running",
   "status.unknown": "Unknown",
 
   "action.snooze": "Snooze",
   "action.dismiss": "Dismiss",
-  "action.cancel": "Cancel",
   "action.test": "Test",
   "action.enable": "Turn alarm on",
   "action.disable": "Turn alarm off",
@@ -111,7 +110,6 @@ const en: Resource = {
   "label.auto_dismiss": "Auto off",
   "label.ringing_since": "for {duration}",
   "label.until": "until {time}",
-  "label.post_pending": "Post action pending",
   "label.off": "off",
   "label.no_time": "--:--",
 
