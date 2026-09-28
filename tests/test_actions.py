@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
@@ -97,19 +98,28 @@ def _record(hass: HomeAssistant, *event_types: str) -> list[Event]:
     return events
 
 
-async def _until(condition: Callable[[], bool]) -> None:
+async def _until(condition: Callable[[], bool], timeout: float = 10.0) -> None:
     """Let the loop run background tasks until the condition holds.
 
     For sequences that never end, which async_block_till_done would wait for
-    forever. A fixed number of loop turns was not enough on a slower CI
-    runner, so this waits for the condition itself; the assertion after it
-    still fails if it never comes. asyncio.sleep with a duration never
-    returns under the frozen clock, hence the zero-length turns.
+    forever. Counting loop turns does not work: on CI a step came several
+    milliseconds of real time late, far past a thousand turns that take two
+    locally, so something on the way waits on real time. The limit is
+    therefore wall time; the assertion after the call still fails if the
+    condition never comes.
+
+    The clock is read through clock_gettime: freezegun replaces every name
+    bound to time.monotonic in every loaded module, including an imported
+    freezegun.api.real_monotonic, but leaves clock_gettime alone.
     """
-    for _ in range(1000):
-        if condition():
-            return
+    deadline = _real_clock() + timeout
+    while not condition() and _real_clock() < deadline:
         await asyncio.sleep(0)
+
+
+def _real_clock() -> float:
+    """Monotonic seconds that keep running under the frozen clock."""
+    return time.clock_gettime(time.CLOCK_MONOTONIC)
 
 
 async def _to_pre_phase(
