@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.0.0] - 2026-09-28
 
 Every phase of a wake-up now has a sequence of actions instead of a single
 script. Assigned scripts are migrated on the first start, see **Breaking
