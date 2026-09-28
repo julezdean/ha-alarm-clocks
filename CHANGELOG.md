@@ -10,6 +10,10 @@ Every phase of a wake-up now has a sequence of actions instead of a single
 script. Assigned scripts are migrated on the first start, see **Breaking
 changes** for what that changes in their behaviour.
 
+Coming from 1.x, read the 2.0.0 notes below as well: they hold the changes
+to the card, which dashboards need adjusted by hand. The cancelling of the
+pre and post phase that 2.0.0 added is removed again here.
+
 ### Breaking changes
 
 - The five script fields are replaced by one action sequence per phase. The
