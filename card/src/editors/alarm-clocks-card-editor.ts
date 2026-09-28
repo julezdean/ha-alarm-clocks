@@ -40,10 +40,18 @@ const CARD_SCHEMA: FormSchemaItem[] = [
   },
 ];
 
-/** A single-field form: just the device picker, reused for the "add" slot and the detail page. */
-const PICKER_SCHEMA: FormSchemaItem[] = [
-  { name: "device_id", selector: { device: { filter: { integration: ALARM_CLOCKS_DOMAIN } } } },
-];
+/** A single-field form: just the device picker, reused for the "add" slot and the detail page.
+ *  `excludeDeviceIds` keeps an alarm already in the list from being picked a second time. */
+function pickerSchema(excludeDeviceIds: string[]): FormSchemaItem[] {
+  return [
+    {
+      name: "device_id",
+      selector: {
+        device: { filter: { integration: ALARM_CLOCKS_DOMAIN }, exclude_devices: excludeDeviceIds },
+      },
+    },
+  ];
+}
 
 /** The detail page: every option, for this one alarm. */
 const DEVICE_SCHEMA: FormSchemaItem[] = [
@@ -117,7 +125,7 @@ export class MacaAlarmCardEditor extends LitElement {
             class="picker"
             .hass=${this.hass}
             .data=${{ device_id: undefined }}
-            .schema=${PICKER_SCHEMA}
+            .schema=${pickerSchema(this._usedDeviceIds())}
             .computeLabel=${this._computeLabel}
             @value-changed=${this._onAddDeviceChanged}
           ></ha-form>
@@ -205,7 +213,7 @@ export class MacaAlarmCardEditor extends LitElement {
       <ha-form
         .hass=${this.hass}
         .data=${resolved}
-        .schema=${PICKER_SCHEMA}
+        .schema=${pickerSchema(this._usedDeviceIds(index))}
         .computeLabel=${this._computeLabel}
         @value-changed=${onChanged}
       ></ha-form>
@@ -217,6 +225,14 @@ export class MacaAlarmCardEditor extends LitElement {
         @value-changed=${onChanged}
       ></ha-form>
     `;
+  }
+
+  /** Device ids already picked elsewhere in this card; `excludeIndex` exempts an entry's own slot. */
+  private _usedDeviceIds(excludeIndex?: number): string[] {
+    return (this._config?.devices ?? [])
+      .map(normalizeDeviceConfig)
+      .filter((_entry, index) => index !== excludeIndex)
+      .map((entry) => entry.device_id);
   }
 
   private _deviceLabel(entry: MacaAlarmDeviceConfig): string {
@@ -285,11 +301,16 @@ export class MacaAlarmCardEditor extends LitElement {
     if (!key) {
       return;
     }
+    const value = (event.detail.value as unknown as Record<string, unknown>)[key];
+    if (key === "device_id" && this._usedDeviceIds(index).includes(value as string)) {
+      // The picker already excludes these; this only catches an older HA
+      // frontend without `exclude_devices` support. Force a re-render so the
+      // field snaps back to this entry's own device instead of the rejected pick.
+      this.requestUpdate();
+      return;
+    }
     const devices = (this._config?.devices ?? []).map(normalizeDeviceConfig);
-    devices[index] = {
-      ...devices[index],
-      [key]: (event.detail.value as unknown as Record<string, unknown>)[key],
-    };
+    devices[index] = { ...devices[index], [key]: value };
     this._updateDevices(devices);
   }
 
@@ -304,6 +325,11 @@ export class MacaAlarmCardEditor extends LitElement {
     event.stopPropagation();
     const deviceId = event.detail.value.device_id;
     if (!deviceId) {
+      return;
+    }
+    if (this._usedDeviceIds().includes(deviceId)) {
+      // Same fallback as above: the picker already excludes used devices.
+      this.requestUpdate();
       return;
     }
     const devices = [...(this._config?.devices ?? []).map(normalizeDeviceConfig), { device_id: deviceId }];
