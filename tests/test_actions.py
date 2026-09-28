@@ -227,6 +227,57 @@ async def test_stopping_the_alarm_actions_stops_a_directly_called_script(
     assert hass.states.get("script.music").state == "off"
 
 
+async def test_a_directly_called_script_holds_up_the_steps_after_it(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+) -> None:
+    """A direct call waits for the script, so what follows it runs only after."""
+    assert await async_setup_component(
+        hass, "script", {"script": {"music": {"sequence": _long("music")}}}
+    )
+    entry = await _setup(
+        hass,
+        config_entry,
+        **{CONF_ALARM_ACTIONS: [{"action": "script.music"}, {"event": "lights_on"}]},
+    )
+    lights = _record(hass, "lights_on")
+
+    await entry.runtime_data.async_trigger_alarm()
+    await _until(lambda: hass.states.get("script.music").state == "on")
+    assert lights == []
+
+    hass.bus.async_fire("music_release")
+    await _until(lambda: len(lights) == 1)
+    assert len(lights) == 1
+
+
+async def test_a_script_in_a_parallel_block_runs_alongside_and_still_stops(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+) -> None:
+    """parallel lets the other steps run at once and keeps the stop on snooze."""
+    assert await async_setup_component(
+        hass, "script", {"script": {"music": {"sequence": _long("music")}}}
+    )
+    entry = await _setup(
+        hass,
+        config_entry,
+        **{
+            CONF_ALARM_ACTIONS: [
+                {"parallel": [{"action": "script.music"}, {"event": "lights_on"}]}
+            ]
+        },
+    )
+    lights = _record(hass, "lights_on")
+
+    await entry.runtime_data.async_trigger_alarm()
+    await _until(lambda: hass.states.get("script.music").state == "on" and lights)
+    assert hass.states.get("script.music").state == "on"
+    assert len(lights) == 1
+
+    await entry.runtime_data.async_snooze(duration=5)
+    await _until(lambda: hass.states.get("script.music").state == "off")
+    assert hass.states.get("script.music").state == "off"
+
+
 async def test_migrated_script_with_a_renamed_entity_runs_and_stops(
     hass: HomeAssistant, options: dict[str, Any]
 ) -> None:

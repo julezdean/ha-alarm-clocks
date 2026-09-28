@@ -34,6 +34,19 @@ one runs detached and keeps going. Stopping ends steps, not their effects
 either. Music a `media_player.play_media` started keeps playing after the alarm
 actions stop, which is what the dismiss actions are for.
 
+A direct call waits for the script to end, so the steps after it only run
+once it has, and not at all when it runs until the alarm is dismissed. What
+should happen alongside goes into a *Run in parallel* block with the script
+call; a script called directly inside it is still stopped with the sequence:
+
+```yaml
+- parallel:
+    - action: script.wake_up
+    - action: light.turn_on
+      target:
+        entity_id: light.bedroom
+```
+
 The pre actions deliberately keep running once the alarm rings, so a pre
 phase can carry on past it. The post phase lasts until the post actions are
 done: the state is `post_active` while they run, and a one-shot alarm clock
