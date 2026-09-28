@@ -120,15 +120,14 @@ expandable: false
 expanded: true
 ```
 
-Compact, only time and state, never expandable:
+Every alarm clock as a compact list, never expandable — what the separate
+`alarm-clocks-list-card` used to be. Each line has the name, the state or the
+time left, the alarm time, and the switch, or snooze and dismiss while it is
+ringing:
 
 ```yaml
 type: custom:alarm-clocks-card
-devices:
-  - 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
 expandable: false
-show_days: false
-show_settings: false
 ```
 
 Every alarm clock, collapsed, with a test button for the initial setup:
