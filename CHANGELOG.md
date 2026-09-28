@@ -4,6 +4,73 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-09-28
+
+The two Lovelace cards are now one, and its configuration changed with it.
+Dashboards set up with 1.x need their cards adjusted, see **Migrating from
+1.x** below. The integration itself, its entities, services and events are
+unchanged apart from the addition to `alarm_clocks.dismiss`.
+
+### Migrating from 1.x
+
+- `custom:alarm-clocks-list-card` no longer exists and shows as an unknown
+  custom element. Use `custom:alarm-clocks-card` with `expandable: false`;
+  `title`, `devices`, `show_next_alarm` and `hide_disabled` mean the same
+  there.
+
+  ```yaml
+  type: custom:alarm-clocks-card
+  expandable: false
+  ```
+
+- `custom:alarm-clocks-card` no longer reads `device_id`, `entity` or `name`
+  on the card. Without `devices` it now shows every alarm clock, collapsed.
+  The single, always open alarm clock of 1.x is:
+
+  ```yaml
+  type: custom:alarm-clocks-card
+  devices:
+    - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
+      name: Bedroom            # only if the card had a name
+  expandable: false
+  expanded: true
+  ```
+
+- `settings_expanded` is gone. An expanded alarm shows its settings directly,
+  without a second toggle; `show_settings: false` still hides them.
+
+### Changed
+
+- One card, `custom:alarm-clocks-card`, for one or any number of alarm clocks.
+  Each is a row that collapses to a compact line with name, state, time and
+  switch, or expands to the full detail. The list card and the detail card
+  covered almost the same ground and forced one layout per card; now a card
+  holds several alarms and each can be looked at in full without a second
+  card.
+- Whether a row can be toggled at all (`expandable`), whether it starts open
+  (`expanded`) and whether opening one row closes the others (`accordion`) are
+  options. Always open, always collapsed and togglable alarms can sit in the
+  same card.
+- Every display option can be set once on the card as the default for all
+  alarms and overridden per alarm, together with a name of its own, by listing
+  the alarm in `devices` as an object instead of a plain device ID. An
+  explicit list keeps the order it is given in.
+- The alarm time no longer has an edit button that opens the Home Assistant
+  time dialog. The step buttons, arrow keys and mouse wheel cover exact input.
+
+### Added
+
+- `alarm_clocks.dismiss`, and the card's dismiss button, now also cancel a
+  running pre phase or a pending post action; the card offers it as "Cancel"
+  in those two states. Cancelling the pre phase skips only that one
+  occurrence and leaves the alarm clock armed for its next one, cancelling
+  the post action skips its script. Until now a wake-up that was no longer
+  wanted could only be waited out or stopped by switching the alarm clock off.
+- A visual editor for all of this: the card-wide defaults under their own
+  heading, a list of alarms each with its own detail page, and on that page
+  the fields the alarm sets itself, each of which can be dropped to follow the
+  card again. Adding an alarm only offers the ones not yet in the card.
+
 ## [1.1.5] - 2026-09-08
 
 ### Changed

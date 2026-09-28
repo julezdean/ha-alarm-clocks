@@ -1,27 +1,17 @@
-import { ALARM_CARD_TAG, CARD_VERSION, LIST_CARD_TAG, REPO_URL } from "./const";
+import { ALARM_CARD_TAG, CARD_VERSION, REPO_URL } from "./const";
 
 import "./cards/alarm-clocks-card";
-import "./cards/alarm-clocks-list-card";
 
 window.customCards = window.customCards ?? [];
 
-window.customCards.push(
-  {
-    type: ALARM_CARD_TAG,
-    name: "Alarm Clock Card",
-    description:
-      "Alarm time, weekdays, snooze and dismiss for a single alarm clock.",
-    preview: true,
-    documentationURL: REPO_URL,
-  },
-  {
-    type: LIST_CARD_TAG,
-    name: "Alarm Clock List Card",
-    description: "Compact overview of all alarm clocks.",
-    preview: true,
-    documentationURL: REPO_URL,
-  },
-);
+window.customCards.push({
+  type: ALARM_CARD_TAG,
+  name: "Alarm Clock Card",
+  description:
+    "One or several alarm clocks: alarm time, weekdays, snooze and dismiss, each row optionally collapsible.",
+  preview: true,
+  documentationURL: REPO_URL,
+});
 
 /* eslint-disable no-console */
 console.info(

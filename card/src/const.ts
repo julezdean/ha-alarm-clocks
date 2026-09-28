@@ -5,8 +5,7 @@ export const ALARM_CLOCKS_DOMAIN = "alarm_clocks";
 
 export const ALARM_CARD_TAG = "alarm-clocks-card";
 export const ALARM_CARD_EDITOR_TAG = "alarm-clocks-card-editor";
-export const LIST_CARD_TAG = "alarm-clocks-list-card";
-export const LIST_CARD_EDITOR_TAG = "alarm-clocks-list-card-editor";
+export const ALARM_ITEM_TAG = "alarm-clocks-item";
 
 export const REPO_URL = "https://github.com/julezdean/ha-alarm-clocks";
 

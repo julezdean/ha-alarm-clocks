@@ -7,7 +7,7 @@ Every alarm clock is its own device with its own entities. Adding another one
 is a single click on **Add integration**, with no configuration files and no
 restart.
 
-![The list card and the alarm card: armed, ringing, with the settings open and switched off](https://raw.githubusercontent.com/julezdean/ha-alarm-clocks/main/images/screenshot-cards.png)
+![The alarm clock card, collapsed as a compact list and with a row expanded to its full detail](https://raw.githubusercontent.com/julezdean/ha-alarm-clocks/main/images/screenshot-cards.png)
 
 ## How it works
 
@@ -37,7 +37,12 @@ your own automations through the events instead of through scripts. Both can
 be mixed.
 
 Each phase can also be switched off: a pre or post offset of zero skips that
-phase entirely, a snooze duration of zero disables snoozing.
+phase entirely, a snooze duration of zero disables snoozing. A phase that is
+already running can also be cancelled on the spot, without touching its
+offset — `alarm_clocks.dismiss` (and the card's dismiss button) doubles as
+"cancel" while the pre or post phase is active. Cancelling the pre phase
+skips only that one occurrence; the alarm clock stays armed for its next
+regular one. Cancelling a pending post action just skips the post script.
 
 ## Features
 
@@ -120,52 +125,44 @@ If Lovelace manages its resources through YAML, the integration does not write
 to that configuration. In that case the log names the URL to add manually as a
 JavaScript module.
 
-Two cards are included.
-
-### `custom:alarm-clocks-card`
-
-A single alarm clock with state, alarm time, weekdays and snooze and dismiss
-buttons.
+One card, `custom:alarm-clocks-card`, shows one or several alarm clocks. Each
+one is a row that can be collapsed to a compact line or expanded to its full
+detail: alarm time, weekdays, settings, snooze and dismiss.
 
 ```yaml
 type: custom:alarm-clocks-card
-device_id: <device ID of the alarm clock>
 title: Bedroom
-show_days: true
-show_next_alarm: true
-show_settings: true
-settings_expanded: false
-show_test_button: false
-minute_step: 5
+devices:
+  - device_id: 4f2c9c1d8f3e4b0a9c7d6e5f4a3b2c1d
+    name: Bedroom alarm
+    expanded: true
 ```
 
-Every field except `device_id` is optional, and the card can be configured
-entirely through the graphical card editor. If there is exactly one alarm
-clock, the card finds it by itself.
+With no `devices`, the card shows every alarm clock it finds, sorted by name.
+Every display option — weekdays, settings, the test button, whether a row can
+be expanded at all and which one starts open — can be set once on the card as
+the default for every alarm, and overridden per alarm, so a mix of
+always-open, always-collapsed and togglable alarms can still sit in one card.
+Whether opening one togglable row closes the others is a card-wide choice.
+The visual editor is built for exactly this: the card-wide defaults have their
+own section at the top, and past that is a list of alarms, each opened through
+its own pencil icon into a detail page that also lists what that alarm sets
+itself and lets you drop each back to the default. Details and
+every field are in [card/README.md](card/README.md).
 
-### `custom:alarm-clocks-list-card`
-
-All alarm clocks below each other.
-
-```yaml
-type: custom:alarm-clocks-list-card
-devices: []          # empty = all alarm clocks
-hide_disabled: false
-show_next_alarm: true
-```
-
-The cards talk to the integration through the services
+The card talks to the integration through the services
 `alarm_clocks.snooze`, `alarm_clocks.dismiss` and
-`alarm_clocks.trigger_alarm`, and find the entities of an alarm clock through
-the entity registry. If individual entities are disabled there, the card
-shows a corresponding hint.
+`alarm_clocks.trigger_alarm`, and finds the entities of an alarm clock through
+the entity registry. An alarm clock without any visible entities there — for
+example because they were all disabled — is left out of the card rather than
+shown broken.
 
 ## Services
 
 | Service | Effect |
 | --- | --- |
 | `alarm_clocks.snooze` | Snooze; the optional field `duration` (minutes) overrides the configured duration and also works when the configured duration is zero |
-| `alarm_clocks.dismiss` | End ringing or snoozing and start the post action |
+| `alarm_clocks.dismiss` | End ringing or snoozing and start the post action; also cancels a running pre phase (the next regular occurrence stands) or skips a pending post action |
 | `alarm_clocks.trigger_alarm` | Trigger the alarm immediately (test) |
 | `alarm_clocks.set_alarm` | Set the fields `time` and/or `days` |
 
@@ -195,7 +192,7 @@ data:
 | `alarm_clocks_pre_trigger` | The pre offset before the alarm time is reached; the state turns `pre_active` until the alarm rings |
 | `alarm_clocks_alarm_triggered` | The alarm starts (`source`: `schedule`, `manual`, `snooze_end`) |
 | `alarm_clocks_snoozed` | A snooze started (`duration`, `snooze_until`) |
-| `alarm_clocks_dismissed` | The alarm ended (`source`: `manual`, `auto`, `cleanup`) |
+| `alarm_clocks_dismissed` | The alarm ended, or a pre or post phase was cancelled (`source`: `manual`, `auto`, `cleanup`) |
 | `alarm_clocks_post_trigger` | The post offset after the dismiss has elapsed |
 
 Every event additionally carries `entry_id`, `device_id` and `name`.
@@ -255,11 +252,11 @@ your setup, an issue describing it is the more useful route.
 
 ## Development
 
-Nothing in this section is needed to use the integration. The Lovelace cards
-ship pre-built and are registered automatically, so there is no build step for
+Nothing in this section is needed to use the integration. The Lovelace card
+ships pre-built and is registered automatically, so there is no build step for
 users. This is only for working on the project itself.
 
-The integration lives in `custom_components/alarm_clocks`, the Lovelace cards
+The integration lives in `custom_components/alarm_clocks`, the Lovelace card
 in `card/`.
 
 ```bash

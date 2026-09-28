@@ -95,23 +95,52 @@ export interface LovelaceGridOptions {
   max_columns?: number;
 }
 
-export interface MacaAlarmCardConfig extends LovelaceCardConfig {
-  device_id?: string;
-  entity?: string;
-  name?: string;
+/**
+ * Every display option, shared by the card (as the default for any alarm
+ * that does not set its own) and by a `MacaAlarmDeviceConfig` entry (as an
+ * override for just that one alarm). Unset anywhere falls back to
+ * `DEVICE_DEFAULTS` (see `cards/alarm-clocks-card.ts`).
+ */
+export interface MacaAlarmDisplayOptions {
+  hide_disabled?: boolean;
   show_days?: boolean;
   show_next_alarm?: boolean;
   show_settings?: boolean;
-  settings_expanded?: boolean;
   show_test_button?: boolean;
   minute_step?: number;
+  /** Whether a row can be expanded and collapsed by clicking it. Default `true`. */
+  expandable?: boolean;
+  /**
+   * With `expandable: false`, the fixed state of a row. With
+   * `expandable: true`, whether it starts open: every such row without
+   * `accordion`, only the first one (in `devices` order, or sorted by name
+   * when `devices` is empty) with it.
+   */
+  expanded?: boolean;
 }
 
-export interface MacaAlarmListCardConfig extends LovelaceCardConfig {
+/** A plain device id with no overrides at all is also valid in `devices`. */
+export interface MacaAlarmDeviceConfig extends MacaAlarmDisplayOptions {
+  device_id: string;
+  name?: string;
+}
+
+export interface MacaAlarmCardConfig extends LovelaceCardConfig, MacaAlarmDisplayOptions {
   title?: string;
-  devices?: string[];
-  show_next_alarm?: boolean;
-  hide_disabled?: boolean;
+  /**
+   * Card-wide only, since it is about how rows relate to each other. `true`
+   * (default): opening a row closes the others. `false`: every row toggles on
+   * its own. See `cardExpandedApplies` for what it does to a card-wide `expanded`.
+   */
+  accordion?: boolean;
+  /**
+   * Omitted or empty: every alarm clock found in the registry, sorted by
+   * name. A list of entries (plain device ids or `MacaAlarmDeviceConfig`
+   * objects): exactly those alarms, in that order. Either way, an alarm that
+   * does not set one of the options above uses the card's own, and an alarm
+   * whose card also does not set it uses `DEVICE_DEFAULTS`.
+   */
+  devices?: (string | MacaAlarmDeviceConfig)[];
 }
 
 declare global {

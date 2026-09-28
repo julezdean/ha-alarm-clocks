@@ -121,6 +121,10 @@ class RuntimeState:
     post_due_at: datetime | None = None
     # Alarm time the running pre phase belongs to; None when no pre phase runs.
     pre_until: datetime | None = None
+    # A regular occurrence at or before this point in time is skipped: set
+    # when the pre phase belonging to it is cancelled, so it does not ring
+    # after all. Stops mattering on its own once that time has passed.
+    skip_until: datetime | None = None
 
     def as_dict(self) -> dict[str, Any]:
         """Serialise for persistence."""
@@ -134,6 +138,7 @@ class RuntimeState:
             else None,
             "post_due_at": self.post_due_at.isoformat() if self.post_due_at else None,
             "pre_until": self.pre_until.isoformat() if self.pre_until else None,
+            "skip_until": self.skip_until.isoformat() if self.skip_until else None,
         }
 
     @classmethod
@@ -155,6 +160,7 @@ class RuntimeState:
             snooze_until=_dt("snooze_until"),
             post_due_at=_dt("post_due_at"),
             pre_until=_dt("pre_until"),
+            skip_until=_dt("skip_until"),
         )
 
 

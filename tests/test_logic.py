@@ -31,6 +31,7 @@ from custom_components.alarm_clocks.const import (
     EVENT_POST_TRIGGER,
     STATE_ARMED,
     STATE_DISABLED,
+    STATE_POST_PENDING,
     STATE_PRE_ACTIVE,
     STATE_RINGING,
     STATE_SNOOZED,
@@ -291,6 +292,93 @@ async def test_pre_phase_sets_state(
     await hass.async_block_till_done()
     assert coordinator.state == STATE_RINGING
     assert coordinator.runtime.pre_until is None
+
+
+async def test_dismiss_cancels_pre_phase(
+    hass: HomeAssistant, config_entry: MockConfigEntry, freezer: FrozenDateTimeFactory
+) -> None:
+    """Dismissing during the pre phase skips that occurrence, not the schedule.
+
+    Simply clearing the pre phase is not enough on its own: rescheduling would
+    still find the same occurrence ahead, inside its own pre-offset window,
+    and re-enter the pre phase immediately. The occurrence itself has to be
+    skipped so the alarm clock actually goes back to plain armed.
+    """
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry, options={**config_entry.options, CONF_PRE_OFFSET: 30}
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = config_entry.runtime_data
+    skipped_alarm = coordinator.next_alarm
+    assert skipped_alarm is not None
+
+    freezer.move_to(skipped_alarm - timedelta(minutes=29, seconds=59))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert coordinator.state == STATE_PRE_ACTIVE
+
+    events: list[str] = []
+    hass.bus.async_listen(EVENT_DISMISSED, lambda event: events.append(event.event_type))
+
+    await coordinator.async_dismiss()
+    await hass.async_block_till_done()
+
+    assert coordinator.state == STATE_ARMED
+    assert coordinator.runtime.pre_until is None
+    # The skipped occurrence does not come back; the next one is a day later,
+    # same time, still a configured weekday.
+    assert coordinator.next_alarm == skipped_alarm + timedelta(days=1)
+    assert EVENT_DISMISSED in events
+
+    # And it stays armed instead of re-entering the pre phase for it.
+    freezer.move_to(skipped_alarm + timedelta(seconds=5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert coordinator.state == STATE_ARMED
+
+
+async def test_dismiss_cancels_pending_post_action(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+) -> None:
+    """Dismissing during the post phase skips the post script."""
+    config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        config_entry, options={**config_entry.options, CONF_POST_OFFSET: 30}
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = config_entry.runtime_data
+    await coordinator.async_trigger_alarm()
+    await hass.async_block_till_done()
+    await coordinator.async_dismiss()
+    await hass.async_block_till_done()
+    assert coordinator.state == STATE_POST_PENDING
+
+    events: list[str] = []
+    for event_type in (EVENT_DISMISSED, EVENT_POST_TRIGGER):
+        hass.bus.async_listen(event_type, lambda event: events.append(event.event_type))
+
+    await coordinator.async_dismiss()
+    await hass.async_block_till_done()
+
+    assert coordinator.state == STATE_ARMED
+    assert coordinator.runtime.post_due_at is None
+    assert EVENT_DISMISSED in events
+    assert EVENT_POST_TRIGGER not in events
+
+
+async def test_dismiss_when_armed_is_ignored(
+    hass: HomeAssistant, setup_alarm: MockConfigEntry
+) -> None:
+    """Dismissing with nothing ringing, snoozing or pending is a no-op."""
+    coordinator = setup_alarm.runtime_data
+    await coordinator.async_dismiss()
+    await hass.async_block_till_done()
+    assert coordinator.state == STATE_ARMED
 
 
 async def test_snooze_duration_zero_disables_snoozing(

@@ -137,7 +137,7 @@
     },
     "dismiss": {
       "name": "Beenden",
-      "description": "Beendet Klingeln oder Snooze und startet die Post-Aktion."
+      "description": "Beendet Klingeln oder Snooze und startet die Post-Aktion. Im Vorlauf überspringt es diesen einen Weckzeitpunkt, bei wartender Post-Aktion deren Skript."
     },
     "trigger_alarm": {
       "name": "Alarm auslösen",
