@@ -84,6 +84,7 @@ async def test_entities_created(hass: HomeAssistant, setup_alarm: MockConfigEntr
         ("sensor", "next_alarm"),
         ("sensor", "state"),
         ("sensor", "snooze_until"),
+        ("sensor", "post_due"),
         ("button", "snooze"),
         ("button", "dismiss"),
     ]
@@ -294,16 +295,10 @@ async def test_pre_phase_sets_state(
     assert coordinator.runtime.pre_until is None
 
 
-async def test_dismiss_cancels_pre_phase(
+async def test_dismiss_during_pre_phase_is_ignored(
     hass: HomeAssistant, config_entry: MockConfigEntry, freezer: FrozenDateTimeFactory
 ) -> None:
-    """Dismissing during the pre phase skips that occurrence, not the schedule.
-
-    Simply clearing the pre phase is not enough on its own: rescheduling would
-    still find the same occurrence ahead, inside its own pre-offset window,
-    and re-enter the pre phase immediately. The occurrence itself has to be
-    skipped so the alarm clock actually goes back to plain armed.
-    """
+    """The pre phase cannot be cancelled; dismissing it does nothing."""
     config_entry.add_to_hass(hass)
     hass.config_entries.async_update_entry(
         config_entry, options={**config_entry.options, CONF_PRE_OFFSET: 30}
@@ -312,10 +307,10 @@ async def test_dismiss_cancels_pre_phase(
     await hass.async_block_till_done()
 
     coordinator = config_entry.runtime_data
-    skipped_alarm = coordinator.next_alarm
-    assert skipped_alarm is not None
+    next_alarm = coordinator.next_alarm
+    assert next_alarm is not None
 
-    freezer.move_to(skipped_alarm - timedelta(minutes=29, seconds=59))
+    freezer.move_to(next_alarm - timedelta(minutes=29, seconds=59))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert coordinator.state == STATE_PRE_ACTIVE
@@ -326,24 +321,21 @@ async def test_dismiss_cancels_pre_phase(
     await coordinator.async_dismiss()
     await hass.async_block_till_done()
 
-    assert coordinator.state == STATE_ARMED
-    assert coordinator.runtime.pre_until is None
-    # The skipped occurrence does not come back; the next one is a day later,
-    # same time, still a configured weekday.
-    assert coordinator.next_alarm == skipped_alarm + timedelta(days=1)
-    assert EVENT_DISMISSED in events
+    assert coordinator.state == STATE_PRE_ACTIVE
+    assert coordinator.runtime.pre_until == next_alarm
+    assert events == []
 
-    # And it stays armed instead of re-entering the pre phase for it.
-    freezer.move_to(skipped_alarm + timedelta(seconds=5))
+    # The alarm it belongs to still rings.
+    freezer.move_to(next_alarm + timedelta(seconds=5))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert coordinator.state == STATE_ARMED
+    assert coordinator.state == STATE_RINGING
 
 
-async def test_dismiss_cancels_pending_post_action(
-    hass: HomeAssistant, config_entry: MockConfigEntry
+async def test_dismiss_during_post_pending_is_ignored(
+    hass: HomeAssistant, config_entry: MockConfigEntry, freezer: FrozenDateTimeFactory
 ) -> None:
-    """Dismissing during the post phase skips the post script."""
+    """A pending post phase cannot be skipped; dismissing it does nothing."""
     config_entry.add_to_hass(hass)
     hass.config_entries.async_update_entry(
         config_entry, options={**config_entry.options, CONF_POST_OFFSET: 30}
@@ -357,6 +349,7 @@ async def test_dismiss_cancels_pending_post_action(
     await coordinator.async_dismiss()
     await hass.async_block_till_done()
     assert coordinator.state == STATE_POST_PENDING
+    post_due = coordinator.runtime.post_due_at
 
     events: list[str] = []
     for event_type in (EVENT_DISMISSED, EVENT_POST_TRIGGER):
@@ -365,10 +358,13 @@ async def test_dismiss_cancels_pending_post_action(
     await coordinator.async_dismiss()
     await hass.async_block_till_done()
 
+    assert coordinator.state == STATE_POST_PENDING
+    assert coordinator.runtime.post_due_at == post_due
+    assert events == []
+
+    await _advance(hass, freezer, minutes=30, seconds=5)
+    assert events == [EVENT_POST_TRIGGER]
     assert coordinator.state == STATE_ARMED
-    assert coordinator.runtime.post_due_at is None
-    assert EVENT_DISMISSED in events
-    assert EVENT_POST_TRIGGER not in events
 
 
 async def test_dismiss_when_armed_is_ignored(

@@ -23,13 +23,15 @@ the card from source.
   line — icon, name, time, quick actions — or expands to its full detail. Per
   alarm: togglable, or permanently open or closed; the two can mix freely in
   one card. Togglable rows work as an accordion, or each on its own.
-- **State dependent interface.** Armed, ringing, snoozed, disabled and post
-  pending each have their own colour, icon and actions.
+- **State dependent interface.** Armed, pre phase, ringing, snoozed, post
+  phase and disabled each have their own colour, icon and actions. The pre
+  and the post phase name themselves in the collapsed row, followed by the
+  time left until the alarm or until the post actions start.
 - **Weekdays as a pill row** instead of seven switch rows; with no active day
   a "one-shot" badge is shown.
-- **Snooze and dismiss** only appear when they actually do something; dismiss
-  doubles as "cancel" during the pre and post phase, when there is nothing to
-  snooze or dismiss yet the alarm is still doing something.
+- **Snooze and dismiss** only appear when they actually do something: while
+  the alarm rings or snoozes. The pre and the post phase cannot be cancelled;
+  the switch ends them.
 - **Keyboard-free time input.** Hours and minutes have their own step buttons; holding one repeats and speeds up. Arrow keys work on both segments, and the mouse wheel steps a segment once it is focused.
 - **Settings row** for snooze duration, pre offset, post offset and auto
   dismiss, with the limits taken straight from the number entities.
@@ -189,6 +191,7 @@ registry, so renaming the device or an entity is harmless.
 | `number.<a>_post_offset` | Settings |
 | `number.<a>_auto_dismiss` | Settings |
 | `binary_sensor.<a>_ringing` | Fallback for the state, ringing duration |
+| `sensor.<a>_post_due` | Time left until the post actions start |
 
 Services used: `alarm_clocks.snooze`, `alarm_clocks.dismiss`,
 `alarm_clocks.trigger_alarm`, `switch.toggle`, `number.set_value`.

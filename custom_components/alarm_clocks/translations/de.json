@@ -26,23 +26,58 @@
   "options": {
     "step": {
       "init": {
-        "title": "Scripts",
-        "description": "Alle Script-Felder sind optional. Ein leeres Feld bedeutet, dass dieser Schritt übersprungen wird.",
+        "title": "Aktionen",
+        "description": "Wähle die Phase, deren Aktionen du bearbeiten willst. Jede Phase ist optional: Ohne Aktionen feuert sie trotzdem ihr Event. Die Aktionen bekommen die Event-Daten als Variablen (name, device_id, entry_id und die Daten der Phase), dazu phase.",
+        "menu_options": {
+          "pre": "Pre-Phase",
+          "alarm": "Alarm",
+          "snooze": "Snooze",
+          "dismiss": "Dismiss",
+          "post": "Post-Phase"
+        }
+      },
+      "pre": {
+        "title": "Pre-Aktionen",
+        "description": "Starten so viele Minuten vor der Weckzeit, wie der Pre-Vorlauf angibt. Sie laufen weiter, wenn der Alarm startet, und werden nur gestoppt, wenn der Wecker ausgeschaltet wird. Ein direkt aufgerufenes Script (action: script.x) wird mitgestoppt; eines, das über script.turn_on gestartet wurde, läuft weiter.",
         "data": {
-          "alarm_script": "Alarm-Script",
-          "pre_script": "Pre-Script",
-          "post_script": "Post-Script",
-          "on_snooze_script": "Snooze-Script",
-          "on_dismiss_script": "Dismiss-Script"
+          "pre_actions": "Aktionen"
+        }
+      },
+      "alarm": {
+        "title": "Alarm-Aktionen",
+        "description": "Laufen, während der Alarm klingelt. Sie werden bei Snooze, bei Dismiss und beim Ausschalten des Weckers gestoppt. Ein direkt aufgerufenes Script (action: script.x) wird mitgestoppt; eines, das über script.turn_on gestartet wurde, läuft weiter.",
+        "data": {
+          "alarm_actions": "Aktionen"
+        }
+      },
+      "snooze": {
+        "title": "Snooze-Aktionen",
+        "description": "Laufen in dem Moment, in dem der Alarm schlummert. Sie werden nur gestoppt, wenn der Wecker ausgeschaltet wird.",
+        "data": {
+          "snooze_actions": "Aktionen"
+        }
+      },
+      "dismiss": {
+        "title": "Dismiss-Aktionen",
+        "description": "Laufen in dem Moment, in dem der Alarm endet, auch wenn er endet, weil der Wecker während des Klingelns oder Schlummerns ausgeschaltet wurde.",
+        "data": {
+          "dismiss_actions": "Aktionen"
+        }
+      },
+      "post": {
+        "title": "Post-Aktionen",
+        "description": "Starten so viele Minuten nach dem Dismiss, wie die Post-Verzögerung angibt. Bis sie fertig sind, ist der Status post_active; ein Einmal-Wecker schaltet sich erst dann aus. Ausschalten des Weckers stoppt sie. Ein direkt aufgerufenes Script (action: script.x) wird mitgestoppt; eines, das über script.turn_on gestartet wurde, läuft weiter.",
+        "data": {
+          "post_actions": "Aktionen",
+          "post_timeout": "Zeitlimit"
         },
         "data_description": {
-          "alarm_script": "Läuft während des Klingelns und wird bei Snooze oder Dismiss gestoppt.",
-          "pre_script": "Läuft die eingestellte Anzahl Minuten vor der Weckzeit.",
-          "post_script": "Läuft nach der Post-Verzögerung, sobald der Wecker beendet wurde.",
-          "on_snooze_script": "Läuft direkt beim Schlummern.",
-          "on_dismiss_script": "Läuft direkt beim Beenden."
+          "post_timeout": "Post-Aktionen, die nach so vielen Minuten noch laufen, werden gestoppt, damit eine Sequenz, die nie endet, einen Einmal-Wecker nicht eingeschaltet hält."
         }
       }
+    },
+    "error": {
+      "invalid_actions": "Diese Aktionen sind ungültig. Der Grund steht im Log."
     }
   },
   "entity": {
@@ -82,10 +117,10 @@
         "name": "Snooze-Dauer"
       },
       "pre_offset": {
-        "name": "Pre-Script Vorlauf"
+        "name": "Pre-Vorlauf"
       },
       "post_offset": {
-        "name": "Post-Script Verzögerung"
+        "name": "Post-Verzögerung"
       },
       "auto_dismiss": {
         "name": "Auto-Dismiss nach"
@@ -103,6 +138,9 @@
       "snooze_until": {
         "name": "Snooze bis"
       },
+      "post_due": {
+        "name": "Post-Aktionen fällig"
+      },
       "state": {
         "name": "Status",
         "state": {
@@ -111,7 +149,8 @@
           "ringing": "Klingelt",
           "snoozed": "Schlummert",
           "pre_active": "Vorlauf",
-          "post_pending": "Post-Aktion ausstehend"
+          "post_pending": "Post-Aktionen ausstehend",
+          "post_active": "Post-Aktionen laufen"
         }
       }
     },
@@ -137,7 +176,7 @@
     },
     "dismiss": {
       "name": "Beenden",
-      "description": "Beendet Klingeln oder Snooze und startet die Post-Aktion. Im Vorlauf überspringt es diesen einen Weckzeitpunkt, bei wartender Post-Aktion deren Skript."
+      "description": "Beendet Klingeln oder Snooze und startet die Post-Phase. In der Pre- und der Post-Phase hat es keine Wirkung; die beendet nur das Ausschalten des Weckers."
     },
     "trigger_alarm": {
       "name": "Alarm auslösen",

@@ -20,13 +20,17 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
+    ACTION_KEYS,
     ATTR_DAYS,
     CARD_FILENAME,
     CARD_REGISTERED,
     CARD_URL,
     ATTR_DURATION,
     ATTR_TIME,
+    CONF_POST_TIMEOUT,
+    DEFAULT_POST_TIMEOUT,
     DOMAIN,
+    LEGACY_SCRIPT_KEYS,
     MAX_SNOOZE_DURATION,
     MIN_SNOOZE_DURATION,
     PLATFORMS,
@@ -223,6 +227,35 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     )
 
     await _async_register_card(hass)
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate an entry from the script fields to action sequences.
+
+    Each assigned script becomes a sequence calling it directly
+    (``action: script.x``) rather than through ``script.turn_on``. A direct
+    call is stopped together with the sequence, which keeps the alarm script
+    stopping on snooze and dismiss, and is what lets switching the alarm
+    clock off stop every script it started.
+    """
+    if entry.version > 2:
+        # Written by a newer release; this one cannot know its format.
+        return False
+
+    if entry.version == 1:
+        options = dict(entry.options)
+        for phase, legacy_key in LEGACY_SCRIPT_KEYS.items():
+            script = options.pop(legacy_key, None)
+            options[ACTION_KEYS[phase]] = (
+                [{"action": str(script)}]
+                if script not in (None, "", "none", "None")
+                else []
+            )
+        options.setdefault(CONF_POST_TIMEOUT, DEFAULT_POST_TIMEOUT)
+        hass.config_entries.async_update_entry(entry, options=options, version=2)
+        _LOGGER.debug("%s: migrated the scripts to action sequences", entry.title)
+
     return True
 
 

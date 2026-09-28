@@ -1,4 +1,4 @@
-"""Sensors: next alarm, state and snooze until."""
+"""Sensors: next alarm, state, snooze until and post due."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ async def async_setup_entry(
             AlarmClockNextAlarmSensor(coordinator),
             AlarmClockStateSensor(coordinator),
             AlarmClockSnoozeUntilSensor(coordinator),
+            AlarmClockPostDueSensor(coordinator),
         ]
     )
 
@@ -83,3 +84,20 @@ class AlarmClockSnoozeUntilSensor(AlarmClockEntity, SensorEntity):
     def native_value(self) -> datetime | None:
         """End of the snooze, or None."""
         return self.coordinator.data.snooze_until
+
+
+class AlarmClockPostDueSensor(AlarmClockEntity, SensorEntity):
+    """Point in time at which the post actions start."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:clock-end"
+
+    def __init__(self, coordinator: AlarmClockCoordinator) -> None:
+        """Set up the sensor."""
+        super().__init__(coordinator, "post_due")
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Start of the post actions, or None while none is pending."""
+        return self.coordinator.data.post_due_at

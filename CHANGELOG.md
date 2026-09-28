@@ -4,6 +4,69 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Every phase of a wake-up now has a sequence of actions instead of a single
+script. Assigned scripts are migrated on the first start, see **Breaking
+changes** for what that changes in their behaviour.
+
+### Breaking changes
+
+- The five script fields are replaced by one action sequence per phase. The
+  config entry is migrated on the first start: every assigned script becomes
+  a sequence calling it directly (`action: script.x`). The entry moves to
+  version 2, which a 2.x release refuses to load; going back needs the backup
+  from before the update.
+- Because the migrated scripts are called directly, switching the alarm clock
+  off now stops every one of them that is still running, not only the alarm
+  script. The post script is waited for as well: the post phase lasts until it
+  is done, under the new state `post_active`, and a one-shot alarm clock only
+  switches itself off after it (within the post time limit, 60 minutes by
+  default).
+- The pre and the post phase can no longer be cancelled. `alarm_clocks.dismiss`
+  only ends a ringing or snoozing alarm and does nothing in the pre phase or
+  while the post phase is pending, and the card no longer offers "Cancel"
+  there. Switching the alarm clock off ends both. Cancelling a single
+  occurrence of a recurring alarm clock once its pre phase has started is
+  gone with it.
+- `sensor.<a>_state` has the additional value `post_active`.
+
+### Added
+
+- The options of an alarm clock are a menu of the five phases, each with an
+  action editor as in a script. Every sequence gets the data of its event as
+  variables plus `phase`, and runs in the event's context.
+- A time limit for the post actions, set in the post step (1–240 minutes,
+  60 by default). Post actions still running after it are stopped, so that a
+  sequence that never ends cannot keep a one-shot alarm clock switched on.
+- `sensor.<a>_post_due`, a diagnostic timestamp of when the post actions
+  start while they are pending.
+- The card shows the pre and the post phase with the time left: until the
+  alarm in the pre phase, until the post actions while they are pending.
+
+### Changed
+
+- Switching the alarm clock off ends every phase and stops every running
+  sequence. A ringing or snoozing alarm is still dismissed properly, dismiss
+  actions included, but no post phase is scheduled any more. Switched off in
+  the pre phase, `alarm_clocks_dismissed` fires with `source: cleanup`; in the
+  post phase, which comes after the dismiss, no second one fires.
+- When the alarm time or the weekdays change during the pre phase, the pre
+  phase follows the new alarm time as long as its pre start has passed, and
+  otherwise ends and starts over at the new pre start. Setting or enabling an
+  alarm inside its pre window no longer enters the pre phase without having
+  started it.
+- The number entities for the pre and post offset are named "Pre offset" and
+  "Post delay" (German "Pre-Vorlauf" and "Post-Verzögerung"), without the
+  word script. Their entity IDs are unchanged.
+
+### Fixed
+
+- A pre phase whose alarm was moved kept counting down to the old alarm time,
+  and switching the alarm clock off during the pre phase left the pre script
+  running.
+- The card's German text for a pending post action said it was running.
+
 ## [2.0.0] - 2026-09-28
 
 The two Lovelace cards are now one, and its configuration changed with it.

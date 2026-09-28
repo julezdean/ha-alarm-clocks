@@ -10,33 +10,35 @@ from typing import Any
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    CONF_ALARM_SCRIPT,
+    ACTION_KEYS,
     CONF_ALARM_TIME,
     CONF_AUTO_DISMISS,
     CONF_DAYS,
-    CONF_DISMISS_SCRIPT,
     CONF_ENABLED,
     CONF_POST_OFFSET,
-    CONF_POST_SCRIPT,
+    CONF_POST_TIMEOUT,
     CONF_PRE_OFFSET,
-    CONF_PRE_SCRIPT,
     CONF_SNOOZE_DURATION,
-    CONF_SNOOZE_SCRIPT,
     DEFAULT_ALARM_TIME,
     DEFAULT_AUTO_DISMISS,
     DEFAULT_POST_OFFSET,
+    DEFAULT_POST_TIMEOUT,
     DEFAULT_PRE_OFFSET,
     DEFAULT_SNOOZE_DURATION,
 )
 
-_EMPTY_SCRIPT_VALUES = (None, "", "none", "None")
 
+def parse_actions(value: Any) -> list[dict[str, Any]]:
+    """Normalise an action sequence; unset or empty means no actions.
 
-def _parse_script(value: Any) -> str | None:
-    """Normalise empty or unset script fields to None."""
-    if value in _EMPTY_SCRIPT_VALUES:
-        return None
-    return str(value)
+    The action selector returns a single action as a mapping rather than a
+    one-item list, so both are accepted.
+    """
+    if isinstance(value, Mapping):
+        return [dict(value)]
+    if isinstance(value, (list, tuple)):
+        return [dict(item) for item in value if isinstance(item, Mapping)]
+    return []
 
 
 def _parse_days(value: Any) -> tuple[bool, ...]:
@@ -77,11 +79,9 @@ class AlarmClockConfig:
     pre_offset: int = DEFAULT_PRE_OFFSET
     post_offset: int = DEFAULT_POST_OFFSET
     auto_dismiss: int = DEFAULT_AUTO_DISMISS
-    alarm_script: str | None = None
-    pre_script: str | None = None
-    post_script: str | None = None
-    snooze_script: str | None = None
-    dismiss_script: str | None = None
+    post_timeout: int = DEFAULT_POST_TIMEOUT
+    # Phase -> raw action sequence as stored in the options.
+    actions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
     @property
     def is_one_shot(self) -> bool:
@@ -103,11 +103,13 @@ class AlarmClockConfig:
             auto_dismiss=_parse_int(
                 options.get(CONF_AUTO_DISMISS), DEFAULT_AUTO_DISMISS
             ),
-            alarm_script=_parse_script(options.get(CONF_ALARM_SCRIPT)),
-            pre_script=_parse_script(options.get(CONF_PRE_SCRIPT)),
-            post_script=_parse_script(options.get(CONF_POST_SCRIPT)),
-            snooze_script=_parse_script(options.get(CONF_SNOOZE_SCRIPT)),
-            dismiss_script=_parse_script(options.get(CONF_DISMISS_SCRIPT)),
+            post_timeout=_parse_int(
+                options.get(CONF_POST_TIMEOUT), DEFAULT_POST_TIMEOUT
+            ),
+            actions={
+                phase: parse_actions(options.get(key))
+                for phase, key in ACTION_KEYS.items()
+            },
         )
 
 
@@ -121,10 +123,9 @@ class RuntimeState:
     post_due_at: datetime | None = None
     # Alarm time the running pre phase belongs to; None when no pre phase runs.
     pre_until: datetime | None = None
-    # A regular occurrence at or before this point in time is skipped: set
-    # when the pre phase belonging to it is cancelled, so it does not ring
-    # after all. Stops mattering on its own once that time has passed.
-    skip_until: datetime | None = None
+    # The post actions are running. Their run does not survive a restart,
+    # this only tells the restart that the cycle still has to be finished.
+    post_active: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         """Serialise for persistence."""
@@ -138,7 +139,7 @@ class RuntimeState:
             else None,
             "post_due_at": self.post_due_at.isoformat() if self.post_due_at else None,
             "pre_until": self.pre_until.isoformat() if self.pre_until else None,
-            "skip_until": self.skip_until.isoformat() if self.skip_until else None,
+            "post_active": self.post_active,
         }
 
     @classmethod
@@ -160,7 +161,7 @@ class RuntimeState:
             snooze_until=_dt("snooze_until"),
             post_due_at=_dt("post_due_at"),
             pre_until=_dt("pre_until"),
-            skip_until=_dt("skip_until"),
+            post_active=bool(data.get("post_active", False)),
         )
 
 

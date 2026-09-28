@@ -29,20 +29,38 @@ CONF_PRE_OFFSET: Final = "pre_offset"
 CONF_POST_OFFSET: Final = "post_offset"
 CONF_AUTO_DISMISS: Final = "auto_dismiss"
 
-CONF_ALARM_SCRIPT: Final = "alarm_script"
-CONF_PRE_SCRIPT: Final = "pre_script"
-CONF_POST_SCRIPT: Final = "post_script"
-CONF_SNOOZE_SCRIPT: Final = "on_snooze_script"
-CONF_DISMISS_SCRIPT: Final = "on_dismiss_script"
+# One action sequence per phase, as a list of actions (the format of the
+# action selector and of a script's sequence).
+CONF_PRE_ACTIONS: Final = "pre_actions"
+CONF_ALARM_ACTIONS: Final = "alarm_actions"
+CONF_SNOOZE_ACTIONS: Final = "snooze_actions"
+CONF_DISMISS_ACTIONS: Final = "dismiss_actions"
+CONF_POST_ACTIONS: Final = "post_actions"
+CONF_POST_TIMEOUT: Final = "post_timeout"
 
+PHASE_PRE: Final = "pre"
+PHASE_ALARM: Final = "alarm"
+PHASE_SNOOZE: Final = "snooze"
+PHASE_DISMISS: Final = "dismiss"
+PHASE_POST: Final = "post"
 
-SCRIPT_KEYS: Final = (
-    CONF_ALARM_SCRIPT,
-    CONF_PRE_SCRIPT,
-    CONF_POST_SCRIPT,
-    CONF_SNOOZE_SCRIPT,
-    CONF_DISMISS_SCRIPT,
-)
+# Phase -> options key of its action sequence, in the order of a wake-up.
+ACTION_KEYS: Final[dict[str, str]] = {
+    PHASE_PRE: CONF_PRE_ACTIONS,
+    PHASE_ALARM: CONF_ALARM_ACTIONS,
+    PHASE_SNOOZE: CONF_SNOOZE_ACTIONS,
+    PHASE_DISMISS: CONF_DISMISS_ACTIONS,
+    PHASE_POST: CONF_POST_ACTIONS,
+}
+
+# Script fields of config entry version 1, replaced by the action sequences.
+LEGACY_SCRIPT_KEYS: Final[dict[str, str]] = {
+    PHASE_PRE: "pre_script",
+    PHASE_ALARM: "alarm_script",
+    PHASE_SNOOZE: "on_snooze_script",
+    PHASE_DISMISS: "on_dismiss_script",
+    PHASE_POST: "post_script",
+}
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -54,6 +72,7 @@ DEFAULT_SNOOZE_DURATION: Final = 9
 DEFAULT_PRE_OFFSET: Final = 0
 DEFAULT_POST_OFFSET: Final = 0
 DEFAULT_AUTO_DISMISS: Final = 10
+DEFAULT_POST_TIMEOUT: Final = 60
 
 MIN_SNOOZE_DURATION: Final = 0
 MAX_SNOOZE_DURATION: Final = 30
@@ -61,6 +80,8 @@ MIN_OFFSET: Final = 0
 MAX_OFFSET: Final = 60
 MIN_AUTO_DISMISS: Final = 0
 MAX_AUTO_DISMISS: Final = 120
+MIN_POST_TIMEOUT: Final = 1
+MAX_POST_TIMEOUT: Final = 240
 
 # Weekdays in the order of datetime.weekday() (0 = Monday)
 WEEKDAYS: Final = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -74,6 +95,7 @@ STATE_RINGING: Final = "ringing"
 STATE_SNOOZED: Final = "snoozed"
 STATE_PRE_ACTIVE: Final = "pre_active"
 STATE_POST_PENDING: Final = "post_pending"
+STATE_POST_ACTIVE: Final = "post_active"
 
 ALARM_CLOCK_STATES: Final = [
     STATE_DISABLED,
@@ -82,6 +104,7 @@ ALARM_CLOCK_STATES: Final = [
     STATE_SNOOZED,
     STATE_PRE_ACTIVE,
     STATE_POST_PENDING,
+    STATE_POST_ACTIVE,
 ]
 
 # ---------------------------------------------------------------------------
@@ -109,6 +132,7 @@ ATTR_NAME: Final = "name"
 ATTR_ENTRY_ID: Final = "entry_id"
 ATTR_DEVICE_ID: Final = "device_id"
 ATTR_SNOOZE_UNTIL: Final = "snooze_until"
+ATTR_PHASE: Final = "phase"
 
 SOURCE_SCHEDULE: Final = "schedule"
 SOURCE_MANUAL: Final = "manual"
@@ -124,6 +148,7 @@ TIMER_PRE: Final = "pre"
 TIMER_SNOOZE_END: Final = "snooze_end"
 TIMER_AUTO_DISMISS: Final = "auto_dismiss"
 TIMER_POST: Final = "post"
+TIMER_POST_TIMEOUT: Final = "post_timeout"
 
 # How long after a missed end of snooze (e.g. because Home Assistant was
 # restarted) the alarm is still caught up.

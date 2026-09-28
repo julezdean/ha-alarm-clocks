@@ -652,6 +652,7 @@
         nextAlarm: ["sensor", "next_alarm"],
         status: ["sensor", "state"],
         snoozeUntil: ["sensor", "snooze_until"],
+        postDue: ["sensor", "post_due"],
         snoozeButton: ["button", "snooze"],
         dismissButton: ["button", "dismiss"],
         ...Object.fromEntries(WEEKDAYS.map((day, i) => ["day" + i, ["switch", "day_" + day]])),
@@ -794,12 +795,17 @@
         add("nextAlarm", "unknown", { device_class: "timestamp" });
         add("status", spec.status ?? (spec.enabled === false ? "disabled" : "armed"));
         add("snoozeUntil", "unknown", { device_class: "timestamp" });
+        add("postDue", "unknown", { device_class: "timestamp" });
         add("snoozeButton", "unknown");
         add("dismissButton", "unknown");
 
         if (spec.status === "snoozed" && map.snoozeUntil) {
           const until = new Date(NOW() + (spec.snoozeInMinutes ?? 7) * 60000);
           setState(map.snoozeUntil, until.toISOString());
+        }
+        if (spec.status === "post_pending" && map.postDue) {
+          const due = new Date(NOW() + (spec.postInMinutes ?? 12) * 60000);
+          setState(map.postDue, due.toISOString());
         }
         if (spec.status === "ringing" && map.ringing) {
           // "seit 8 Min." comes from last_changed, not from a state value.
@@ -968,6 +974,14 @@
         name: "Home Office",
         time: "07:30:00",
         status: "post_pending",
+        postInMinutes: 12,
+      });
+      const POST_RUN = addDevice({
+        id: "d-post-run",
+        slug: "school_run",
+        name: "School Run",
+        time: "06:50:00",
+        status: "post_active",
       });
       const OFF = addDevice({
         id: "d-off",
@@ -1079,8 +1093,9 @@
             { label: "armed", tag: ALARM, config: base(MAIN) },
             { label: "ringing", tag: ALARM, config: base(RINGING), note: "snooze + dismiss, ringing duration from last_changed" },
             { label: "snoozed", tag: ALARM, config: base(SNOOZED) },
-            { label: "pre_active", tag: ALARM, config: base(PRE), note: "cancel skips this occurrence only, next one stands" },
-            { label: "post_pending", tag: ALARM, config: base(POST), note: "cancel skips the post script" },
+            { label: "pre_active", tag: ALARM, config: base(PRE), note: "nothing to cancel: only switching the alarm off ends the pre phase" },
+            { label: "post_pending", tag: ALARM, config: base(POST), note: "time left from sensor.<alarm>_post_due" },
+            { label: "post_active", tag: ALARM, config: base(POST_RUN), note: "post actions running; a one-shot alarm switches off after them" },
             { label: "disabled", tag: ALARM, config: base(OFF), note: "next_alarm is unavailable while off" },
             { label: "status sensor unavailable", tag: ALARM, config: base(DERIVED), note: "state derived from the switch" },
           ],
