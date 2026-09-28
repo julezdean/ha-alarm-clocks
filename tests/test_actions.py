@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
 
@@ -96,12 +97,18 @@ def _record(hass: HomeAssistant, *event_types: str) -> list[Event]:
     return events
 
 
-async def _spin(hass: HomeAssistant) -> None:
-    """Let the loop run background tasks without waiting for them to end.
+async def _until(condition: Callable[[], bool]) -> None:
+    """Let the loop run background tasks until the condition holds.
 
-    asyncio.sleep with a duration never returns under the frozen clock.
+    For sequences that never end, which async_block_till_done would wait for
+    forever. A fixed number of loop turns was not enough on a slower CI
+    runner, so this waits for the condition itself; the assertion after it
+    still fails if it never comes. asyncio.sleep with a duration never
+    returns under the frozen clock, hence the zero-length turns.
     """
-    for _ in range(20):
+    for _ in range(1000):
+        if condition():
+            return
         await asyncio.sleep(0)
 
 
@@ -212,11 +219,11 @@ async def test_stopping_the_alarm_actions_stops_a_directly_called_script(
     # The blocking script call is a task async_block_till_done would wait for
     # until the script ends, so the loop only gets to run for a moment.
     await entry.runtime_data.async_trigger_alarm()
-    await _spin(hass)
+    await _until(lambda: hass.states.get("script.music").state == "on")
     assert hass.states.get("script.music").state == "on"
 
     await entry.runtime_data.async_dismiss()
-    await _spin(hass)
+    await _until(lambda: hass.states.get("script.music").state == "off")
     assert hass.states.get("script.music").state == "off"
 
 
@@ -241,11 +248,12 @@ async def test_stopping_the_alarm_actions_leaves_a_turned_on_script_running(
     )
 
     await entry.runtime_data.async_trigger_alarm()
-    await _spin(hass)
+    await _until(lambda: hass.states.get("script.music").state == "on")
     assert hass.states.get("script.music").state == "on"
 
+    # Waiting for the script to stay on would hold at once; wait for the stop.
     await entry.runtime_data.async_dismiss()
-    await _spin(hass)
+    await _until(lambda: not entry.runtime_data._actions.is_running("alarm"))
     assert not entry.runtime_data._actions.is_running("alarm")
     assert hass.states.get("script.music").state == "on"
 
@@ -534,7 +542,12 @@ async def test_moving_the_alarm_past_the_pre_window_starts_it_over(
     # Ending the phase does not stop its actions.
     assert coordinator._actions.is_running("pre")
 
+    # Let that run end first. Otherwise the new pre start has to stop it
+    # before its own run begins, which takes a varying number of loop turns
+    # and made this test fail on CI while it passed locally.
+    await _release(hass, "pre")
+
     await _advance(hass, freezer, minutes=30)  # 07:11, past the new pre start
-    await _spin(hass)
+    await _until(lambda: len(started) == 1)
     assert coordinator.state == STATE_PRE_ACTIVE
     assert len(started) == 1
