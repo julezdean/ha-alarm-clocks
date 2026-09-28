@@ -112,10 +112,9 @@ export interface MacaAlarmDisplayOptions {
   expandable?: boolean;
   /**
    * With `expandable: false`, the fixed state of a row. With
-   * `expandable: true`, whether a row is a candidate to seed the accordion:
-   * the first alarm (in `devices` order, or sorted by name when `devices` is
-   * empty) that is both expandable and resolves `expanded` to `true` opens;
-   * only one row is expanded at a time after that.
+   * `expandable: true`, whether it starts open: every such row without
+   * `accordion`, only the first one (in `devices` order, or sorted by name
+   * when `devices` is empty) with it.
    */
   expanded?: boolean;
 }
@@ -128,6 +127,12 @@ export interface MacaAlarmDeviceConfig extends MacaAlarmDisplayOptions {
 
 export interface MacaAlarmCardConfig extends LovelaceCardConfig, MacaAlarmDisplayOptions {
   title?: string;
+  /**
+   * Card-wide only, since it is about how rows relate to each other. `true`
+   * (default): opening a row closes the others. `false`: every row toggles on
+   * its own. See `cardExpandedApplies` for what it does to a card-wide `expanded`.
+   */
+  accordion?: boolean;
   /**
    * Omitted or empty: every alarm clock found in the registry, sorted by
    * name. A list of entries (plain device ids or `MacaAlarmDeviceConfig`

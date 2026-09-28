@@ -30,6 +30,31 @@ export const DEVICE_DEFAULTS = {
 
 export type DeviceOptionKey = keyof typeof DEVICE_DEFAULTS;
 
+export const ACCORDION_DEFAULT = true;
+
+/**
+ * Whether a card-wide `expanded` is used at all. In an accordion of togglable
+ * rows it could only ever open the first row, which is what a per-alarm
+ * `expanded` is for, so it is set aside (the editor greys it out). Without
+ * the accordion, or when rows cannot be toggled, it means what it says.
+ */
+export function cardExpandedApplies(config?: MacaAlarmCardConfig): boolean {
+  const accordion = config?.accordion ?? ACCORDION_DEFAULT;
+  const expandable = config?.expandable ?? DEVICE_DEFAULTS.expandable;
+  return !(accordion && expandable);
+}
+
+/** The card's own value for `key`, as a fallback for an alarm that does not set it. */
+export function cardOption<K extends DeviceOptionKey>(
+  config: MacaAlarmCardConfig | undefined,
+  key: K,
+): (typeof DEVICE_DEFAULTS)[K] | undefined {
+  if (key === "expanded" && !cardExpandedApplies(config)) {
+    return undefined;
+  }
+  return config?.[key] as (typeof DEVICE_DEFAULTS)[K] | undefined;
+}
+
 /** Relative times are re-rendered on this interval, nothing else ticks. */
 const TICK_INTERVAL = 30_000;
 
@@ -41,8 +66,8 @@ export class MacaAlarmCard extends LitElement {
 
   @state() private _narrow = false;
 
-  /** The one expanded device among the currently expandable rows. */
-  @state() private _expandedDeviceId?: string;
+  /** The open rows among the togglable ones; at most one with `accordion`. */
+  @state() private _expandedDeviceIds = new Set<string>();
 
   private _expandedSeeded = false;
 
@@ -83,7 +108,7 @@ export class MacaAlarmCard extends LitElement {
     this._views = [];
     this._deviceConfigs = new Map();
     this._expandedSeeded = false;
-    this._expandedDeviceId = undefined;
+    this._expandedDeviceIds = new Set();
   }
 
   public set hass(hass: HomeAssistant) {
@@ -152,17 +177,17 @@ export class MacaAlarmCard extends LitElement {
     if (device !== undefined) {
       return device as (typeof DEVICE_DEFAULTS)[K];
     }
-    const card = this._config?.[key];
-    if (card !== undefined) {
-      return card as (typeof DEVICE_DEFAULTS)[K];
-    }
-    return DEVICE_DEFAULTS[key];
+    return cardOption(this._config, key) ?? DEVICE_DEFAULTS[key];
   }
 
-  /** Whether `view` is currently rendered expanded, accordion or fixed. */
+  private get _accordion(): boolean {
+    return this._config?.accordion ?? ACCORDION_DEFAULT;
+  }
+
+  /** Whether `view` is currently rendered expanded, togglable or fixed. */
   private _isExpanded(view: AlarmView): boolean {
     return this._resolve(view, "expandable")
-      ? view.deviceId === this._expandedDeviceId
+      ? this._expandedDeviceIds.has(view.deviceId)
       : this._resolve(view, "expanded");
   }
 
@@ -221,9 +246,10 @@ export class MacaAlarmCard extends LitElement {
 
     if (!this._expandedSeeded) {
       this._expandedSeeded = true;
-      this._expandedDeviceId = visible.find(
-        (view) => this._resolve(view, "expandable") && this._resolve(view, "expanded"),
-      )?.deviceId;
+      const startOpen = visible
+        .filter((view) => this._resolve(view, "expandable") && this._resolve(view, "expanded"))
+        .map((view) => view.deviceId);
+      this._expandedDeviceIds = new Set(this._accordion ? startOpen.slice(0, 1) : startOpen);
     }
 
     return html`
@@ -259,7 +285,14 @@ export class MacaAlarmCard extends LitElement {
 
   private _onToggleExpand = (event: CustomEvent<{ deviceId: string }>): void => {
     const deviceId = event.detail.deviceId;
-    this._expandedDeviceId = this._expandedDeviceId === deviceId ? undefined : deviceId;
+    const wasOpen = this._expandedDeviceIds.has(deviceId);
+    const next = new Set(this._accordion ? [] : this._expandedDeviceIds);
+    if (wasOpen) {
+      next.delete(deviceId);
+    } else {
+      next.add(deviceId);
+    }
+    this._expandedDeviceIds = next;
   };
 
   // -- styles ---------------------------------------------------------------

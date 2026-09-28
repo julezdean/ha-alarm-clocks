@@ -1,7 +1,13 @@
 import { LitElement, css, html, nothing, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
-import { DEVICE_DEFAULTS, type DeviceOptionKey } from "../cards/alarm-clocks-card";
+import {
+  ACCORDION_DEFAULT,
+  DEVICE_DEFAULTS,
+  cardExpandedApplies,
+  cardOption,
+  type DeviceOptionKey,
+} from "../cards/alarm-clocks-card";
 import { ALARM_CARD_EDITOR_TAG, ALARM_CLOCKS_DOMAIN } from "../const";
 import { fireEvent } from "../lib/actions";
 import { normalizeDeviceConfig } from "../lib/discovery";
@@ -13,45 +19,44 @@ interface FormSchemaItem {
   name: string;
   type?: string;
   selector?: unknown;
+  disabled?: boolean;
   schema?: FormSchemaItem[];
 }
 
 const DEVICE_OPTION_KEYS = Object.keys(DEVICE_DEFAULTS) as DeviceOptionKey[];
 
-/** The card-wide defaults: title plus every option, as the fallback for any alarm. */
-const CARD_SCHEMA: FormSchemaItem[] = [
-  { name: "title", selector: { text: {} } },
-  {
-    name: "minute_step",
-    selector: { number: { min: 1, max: 30, step: 1, mode: "box", unit_of_measurement: "min" } },
-  },
-  {
-    name: "",
-    type: "grid",
-    schema: [
-      { name: "expandable", selector: { boolean: {} } },
-      { name: "expanded", selector: { boolean: {} } },
-      { name: "hide_disabled", selector: { boolean: {} } },
-      { name: "show_days", selector: { boolean: {} } },
-      { name: "show_next_alarm", selector: { boolean: {} } },
-      { name: "show_settings", selector: { boolean: {} } },
-      { name: "show_test_button", selector: { boolean: {} } },
-    ],
-  },
-];
-
-/** A single-field form: just the device picker, reused for the "add" slot and the detail page.
- *  `excludeDeviceIds` keeps an alarm already in the list from being picked a second time. */
-function pickerSchema(excludeDeviceIds: string[]): FormSchemaItem[] {
+/** The card-wide defaults: title plus every option, as the fallback for any alarm.
+ *  `expanded` is greyed out wherever the card would set it aside anyway. */
+function cardSchema(config: MacaAlarmCardConfig): FormSchemaItem[] {
   return [
+    { name: "title", selector: { text: {} } },
     {
-      name: "device_id",
-      selector: {
-        device: { filter: { integration: ALARM_CLOCKS_DOMAIN }, exclude_devices: excludeDeviceIds },
-      },
+      name: "minute_step",
+      selector: { number: { min: 1, max: 30, step: 1, mode: "box", unit_of_measurement: "min" } },
+    },
+    {
+      name: "",
+      type: "grid",
+      schema: [
+        { name: "expandable", selector: { boolean: {} } },
+        { name: "accordion", selector: { boolean: {} } },
+        { name: "expanded", selector: { boolean: {} }, disabled: !cardExpandedApplies(config) },
+        { name: "hide_disabled", selector: { boolean: {} } },
+        { name: "show_days", selector: { boolean: {} } },
+        { name: "show_next_alarm", selector: { boolean: {} } },
+        { name: "show_settings", selector: { boolean: {} } },
+        { name: "show_test_button", selector: { boolean: {} } },
+      ],
     },
   ];
 }
+
+/** A single-field form: just the device picker, reused for the "add" slot and the detail page.
+ *  HA's device selector has no way to leave out single devices, so an alarm already in the
+ *  list still shows up here; picking it again is rejected where the change is handled. */
+const PICKER_SCHEMA: FormSchemaItem[] = [
+  { name: "device_id", selector: { device: { filter: { integration: ALARM_CLOCKS_DOMAIN } } } },
+];
 
 /** The detail page: every option, for this one alarm. */
 const DEVICE_SCHEMA: FormSchemaItem[] = [
@@ -112,7 +117,7 @@ export class MacaAlarmCardEditor extends LitElement {
       <ha-form
         .hass=${this.hass}
         .data=${this._resolvedCardData()}
-        .schema=${CARD_SCHEMA}
+        .schema=${cardSchema(this._config)}
         .computeLabel=${this._computeLabel}
         @value-changed=${this._valueChanged}
       ></ha-form>
@@ -125,7 +130,7 @@ export class MacaAlarmCardEditor extends LitElement {
             class="picker"
             .hass=${this.hass}
             .data=${{ device_id: undefined }}
-            .schema=${pickerSchema(this._usedDeviceIds())}
+            .schema=${PICKER_SCHEMA}
             .computeLabel=${this._computeLabel}
             @value-changed=${this._onAddDeviceChanged}
           ></ha-form>
@@ -143,6 +148,7 @@ export class MacaAlarmCardEditor extends LitElement {
     for (const key of DEVICE_OPTION_KEYS) {
       resolved[key] = config[key] ?? DEVICE_DEFAULTS[key];
     }
+    resolved.accordion = config.accordion ?? ACCORDION_DEFAULT;
     return resolved as MacaAlarmCardConfig;
   }
 
@@ -151,7 +157,7 @@ export class MacaAlarmCardEditor extends LitElement {
     const config = this._config;
     const resolved: Record<string, unknown> = { ...entry };
     for (const key of DEVICE_OPTION_KEYS) {
-      resolved[key] = entry[key] ?? config?.[key] ?? DEVICE_DEFAULTS[key];
+      resolved[key] = entry[key] ?? cardOption(config, key) ?? DEVICE_DEFAULTS[key];
     }
     return resolved as unknown as MacaAlarmDeviceConfig;
   }
@@ -213,7 +219,7 @@ export class MacaAlarmCardEditor extends LitElement {
       <ha-form
         .hass=${this.hass}
         .data=${resolved}
-        .schema=${pickerSchema(this._usedDeviceIds(index))}
+        .schema=${PICKER_SCHEMA}
         .computeLabel=${this._computeLabel}
         @value-changed=${onChanged}
       ></ha-form>
@@ -303,9 +309,8 @@ export class MacaAlarmCardEditor extends LitElement {
     }
     const value = (event.detail.value as unknown as Record<string, unknown>)[key];
     if (key === "device_id" && this._usedDeviceIds(index).includes(value as string)) {
-      // The picker already excludes these; this only catches an older HA
-      // frontend without `exclude_devices` support. Force a re-render so the
-      // field snaps back to this entry's own device instead of the rejected pick.
+      // Already in the list under another entry. Re-render so the picker
+      // snaps back to this entry's own device instead of showing the rejected pick.
       this.requestUpdate();
       return;
     }
@@ -328,7 +333,7 @@ export class MacaAlarmCardEditor extends LitElement {
       return;
     }
     if (this._usedDeviceIds().includes(deviceId)) {
-      // Same fallback as above: the picker already excludes used devices.
+      // Already in the list; re-render so the picker goes back to empty.
       this.requestUpdate();
       return;
     }

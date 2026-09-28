@@ -143,6 +143,7 @@ Every display option — weekdays, settings, the test button, whether a row can
 be expanded at all and which one starts open — can be set once on the card as
 the default for every alarm, and overridden per alarm, so a mix of
 always-open, always-collapsed and togglable alarms can still sit in one card.
+Whether opening one togglable row closes the others is a card-wide choice.
 The visual editor is built for exactly this: the card-wide defaults are their
 own form at the top, and past that is a list of alarms, each opened through
 its own pencil icon into a detail page rather than an inline form. Details and

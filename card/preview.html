@@ -601,6 +601,10 @@
                 this._emit(item.name, control.value || undefined),
               );
             }
+            if (item.disabled) {
+              control.disabled = true;
+              row.style.opacity = "0.5";
+            }
             row.appendChild(control);
             parent.appendChild(row);
           };
@@ -1088,7 +1092,7 @@
         {
           title: "Expand and collapse",
           slug: "expand",
-          prose: "expandable and expanded are per-alarm: whether a row can be toggled at all, and what it starts (or stays) as. Mixing them in one card is fine — a fixed-open alarm and a togglable one can sit side by side.",
+          prose: "expandable and expanded are per-alarm: whether a row can be toggled at all, and what it starts (or stays) as. Mixing them in one card is fine — a fixed-open alarm and a togglable one can sit side by side. accordion is card-wide: with it (the default) opening a row closes the others, without it every row toggles on its own.",
           cases: [
             { label: "collapsed by default", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN] }, note: "expandable: true, expanded: false are the defaults for every alarm" },
             { label: "expandable: false, expanded: false", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, expandable: false, expanded: false }] }, note: "no chevron, always the compact row" },
@@ -1096,6 +1100,8 @@
             { label: "a device's own expanded: true seeds the accordion", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [RINGING, { device_id: OFF, expanded: true }, MAIN] }, note: "Vacation opens, even though it's not first in the list; the others never set their own expanded" },
             { label: "first match wins when several set expanded: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: RINGING, expanded: true }, { device_id: OFF, expanded: true }] }, note: "Late Shift, because it's listed first" },
             { label: "fixed-open and togglable, side by side", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [{ device_id: MAIN, expandable: false, expanded: true }, RINGING] }, note: "Work is always fully shown; Late Shift is a normal collapsed row" },
+            { label: "accordion: false, card-wide expanded: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, RINGING], accordion: false, expanded: true }, note: "both start open, and each one toggles without closing the other" },
+            { label: "accordion (default), card-wide expanded: true", tag: ALARM, config: { type: "custom:alarm-clocks-card", devices: [MAIN, RINGING], expanded: true }, note: "set aside: in an accordion it could only open the first row, which is what a per-alarm expanded is for; the editor greys it out" },
           ],
         },
         {

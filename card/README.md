@@ -21,8 +21,8 @@ the card from source.
   you want.
 - **Collapsible rows.** Each alarm clock is a row that collapses to a compact
   line — icon, name, time, quick actions — or expands to its full detail. Per
-  alarm: togglable with an accordion, or permanently open or closed; the two
-  can mix freely in one card.
+  alarm: togglable, or permanently open or closed; the two can mix freely in
+  one card. Togglable rows work as an accordion, or each on its own.
 - **State dependent interface.** Armed, ringing, snoozed, disabled and post
   pending each have their own colour, icon and actions.
 - **Weekdays as a pill row** instead of seven switch rows; with no active day
@@ -70,13 +70,21 @@ written, so everything else keeps following the card if it later changes.
 | `show_test_button` | boolean | `false` | Show a button for `alarm_clocks.trigger_alarm`. |
 | `minute_step` | number | `5` | Step width of the minutes on the time stepper. |
 | `expandable` | boolean | `true` | Whether a row can be expanded and collapsed by clicking it. |
-| `expanded` | boolean | `false` | With `expandable: false`, the fixed state of a row. With `expandable: true`, whether it is a candidate to seed the accordion: the first alarm (in `devices` order, or sorted by name when `devices` is empty) that is both expandable and resolves `expanded` to `true` opens; only one row is expanded at a time after that. Alarms can mix fixed and togglable freely in the same card. |
+| `accordion` | boolean | `true` | Card only, not per alarm. On: opening a row closes the others. Off: every row opens and closes on its own. |
+| `expanded` | boolean | `false` | With `expandable: false`, the fixed state of a row. With `expandable: true`, whether it starts open: every such row without `accordion`, only the first one (in `devices` order, or sorted by name when `devices` is empty) with it. Alarms can mix fixed and togglable freely in the same card. |
+
+With `accordion` and `expandable` both on, `expanded` on the card itself is
+set aside, and the editor greys it out: an accordion could only ever open the
+first row with it, and picking which row starts open is what `expanded` on a
+single alarm is for. With either one off, the card's `expanded` applies as
+usual, which is what keeps a whole card of fixed-open rows
+(`expandable: false`, `expanded: true`) working.
 
 ### Per-alarm overrides
 
 Instead of a plain device ID, an entry in `devices` can be an object with
-`device_id` plus any of the options above, overriding the card's for just
-that one alarm; a mix of plain IDs and override objects in the same list is
+`device_id` plus any of the options above except `accordion`, overriding the
+card's for just that one alarm; a mix of plain IDs and override objects in the same list is
 fine. It can also set:
 
 | Option | Type | Description |

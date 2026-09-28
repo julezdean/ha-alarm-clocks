@@ -431,6 +431,63 @@ function check(name, fn) {
   card.remove();
 }
 
+// --- accordion: false, rows toggle on their own ---------------------------------
+{
+  const { hass } = makeHass({
+    devices: [
+      { id: DEVICE, slug: "wecker_1", name: "Wecker 1", time: "06:30:00" },
+      { id: DEVICE2, slug: "wecker_2", name: "Wecker 2", time: "08:15:00" },
+    ],
+  });
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [DEVICE, DEVICE2], accordion: false, expanded: true },
+    hass,
+  );
+  const expandButtons = () => deepQueryAll(card.shadowRoot, "button.expand-btn");
+  check("accordion: false with a card-wide expanded: true opens every row", () => {
+    assert.equal(deepQueryAll(card.shadowRoot, "alarm-clocks-time-stepper").length, 2);
+  });
+  expandButtons()[0].click();
+  await card.updateComplete;
+  check("accordion: false: collapsing one row leaves the other open", () => {
+    assert.equal(deepQueryAll(card.shadowRoot, "alarm-clocks-time-stepper").length, 1);
+    assert.equal(steppedTime(card), "08:15");
+  });
+  expandButtons()[0].click();
+  await card.updateComplete;
+  check("accordion: false: reopening it does not close the other", () => {
+    assert.equal(deepQueryAll(card.shadowRoot, "alarm-clocks-time-stepper").length, 2);
+  });
+  card.remove();
+}
+{
+  const { hass } = makeHass({
+    devices: [
+      { id: DEVICE, slug: "wecker_1", name: "Wecker 1" },
+      { id: DEVICE2, slug: "wecker_2", name: "Wecker 2" },
+    ],
+  });
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [DEVICE, DEVICE2], expanded: true },
+    hass,
+  );
+  check("accordion (default): a card-wide expanded: true is set aside, nothing opens", () => {
+    assert.equal(deepQuery(card.shadowRoot, "alarm-clocks-time-stepper"), null);
+  });
+  card.remove();
+}
+{
+  const { hass } = makeHass();
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [DEVICE], expandable: false, expanded: true },
+    hass,
+  );
+  check("accordion (default), card-wide expandable: false: expanded still keeps every row open", () => {
+    assert.equal(steppedTime(card), "06:30");
+  });
+  card.remove();
+}
+
 // --- per-device overrides --------------------------------------------------
 {
   const { hass } = makeHass({
