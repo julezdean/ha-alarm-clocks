@@ -11,10 +11,12 @@ restart.
 
 ## How it works
 
-The integration decides **when** something should happen. It never makes a
-sound and never switches a light by itself: there is no built-in siren, no
-media player and no light control. Everything you actually notice comes from
-your own actions, which is what makes the wake-up yours.
+The integration decides **when** something should happen. The one thing it
+does by itself is ring: with a media player chosen, it plays a bundled
+ringtone there while the alarm rings, and stops it again (see
+[Alarm sound](#alarm-sound)). Everything else you notice — lights, music,
+blinds, coffee — comes from your own actions, which is what makes the
+wake-up yours.
 
 A wake-up runs through five phases. Each has its own sequence of actions,
 picked with the same action editor as a script and all optional, under
@@ -32,7 +34,8 @@ Stopping a sequence also stops a script it calls directly
 (`action: script.wake_up`), but not one it starts with `script.turn_on`: that
 one runs detached and keeps going. Stopping ends steps, not their effects
 either. Music a `media_player.play_media` started keeps playing after the alarm
-actions stop, which is what the dismiss actions are for.
+actions stop, which is what the dismiss actions are for. The built-in alarm
+sound is the exception: the integration stops it itself.
 
 A direct call waits for the script to end, so the steps after it only run
 once it has, and not at all when it runs until the alarm is dismissed. What
@@ -83,6 +86,39 @@ phase follows the new alarm time as long as its pre start has already
 passed. Otherwise it ends and starts over at the new pre start; its actions
 keep running in between.
 
+## Alarm sound
+
+Pick a media player and a ringtone, in the card or through
+`select.<a>_media_player` and `select.<a>_ringtone`. While the alarm rings,
+the tone plays on that player over and over. Snoozing, dismissing — by hand
+or automatically — and switching the alarm clock off stop it; when a snooze
+ends, it starts over.
+
+`number.<a>_volume` is the volume the player rings at. The player gets its
+previous volume back when the sound stops, also after Home Assistant was
+restarted while ringing. At zero, the default, the volume is left as it is.
+
+Four tones ship with the integration: Classic, Digital, Chime and Gentle.
+Home Assistant serves them itself, at `/alarm_clocks/sounds/<tone>.wav`, so
+the media player has to reach Home Assistant under the URL set in
+**Settings → System → Network**. Without a media player, the default, the
+alarm stays silent, as in earlier versions.
+
+An Echo is different: Amazon does not let it play a file from a URL. With an
+Echo chosen, the ringtones are the sounds of Amazon's own library instead,
+the 41 that Home Assistant's
+[Alexa integration](https://www.home-assistant.io/integrations/alexa_devices/)
+offers, from Sirens to Church bell. They go through that integration's
+`alexa_devices.send_sound`, or for an Echo from
+[Alexa Media Player](https://github.com/alandtse/alexa_media_player)
+through `play_media` of type `sound`. An Echo reports nothing while it plays
+one, so the sound is repeated every five seconds rather than when it ends.
+Switching between an Echo and another player picks that player's default
+tone — Sirens or Classic — when the chosen one does not fit.
+
+The sound runs beside the alarm actions, not as one of them. Music that the
+alarm actions start still needs dismiss actions to stop it.
+
 ## Features
 
 - Alarm time, seven weekdays, snooze duration, pre offset, post offset and
@@ -92,6 +128,8 @@ keep running in between.
   itself after it has rung
 - Every phase can be switched off individually by setting its value to zero
 - Snooze and dismiss as buttons, and every action as a service
+- A built-in alarm sound on any media player, with four bundled ringtones and
+  its own volume, stopped on snooze and dismiss
 - Five phases with an action sequence each, every one of which also fires an
   event
 - Event driven: no polling and no per-minute tick, just one timer per
@@ -143,6 +181,9 @@ For an alarm clock named `Alarm 1`:
 | `number.alarm_1_pre_offset` | Minutes before the alarm time for the pre phase (0–60, 0 = no pre phase) |
 | `number.alarm_1_post_offset` | Minutes after the dismiss for the post phase (0–60, 0 = no post phase) |
 | `number.alarm_1_auto_dismiss` | Minutes until the automatic dismiss (0 = off) |
+| `select.alarm_1_media_player` | Media player the alarm sound plays on (`none` = no sound) |
+| `select.alarm_1_ringtone` | Ringtone: `classic`, `digital`, `chime`, `gentle`; for an Echo one of Amazon's sounds |
+| `number.alarm_1_volume` | Volume while ringing in percent (0–100, 0 = leave the player's volume alone) |
 | `binary_sensor.alarm_1_ringing` | The alarm is currently ringing (read-only) |
 | `sensor.alarm_1_next_alarm` | Next alarm time; the end of a snooze takes precedence |
 | `sensor.alarm_1_state` | `disabled`, `armed`, `pre_active`, `ringing`, `snoozed`, `post_pending`, `post_active` |
@@ -168,7 +209,7 @@ JavaScript module.
 
 One card, `custom:alarm-clocks-card`, shows one or several alarm clocks. Each
 one is a row that can be collapsed to a compact line or expanded to its full
-detail: alarm time, weekdays, settings, snooze and dismiss.
+detail: alarm time, weekdays, alarm sound, settings, snooze and dismiss.
 
 ```yaml
 type: custom:alarm-clocks-card
@@ -269,6 +310,20 @@ actions:
   cycle, so a one-shot alarm clock switches itself off on startup.
 - If the regular alarm time is reached while the alarm clock is already
   ringing, it is ignored and the next occurrence is scheduled.
+- The alarm sound starts again when the media player reports it has
+  finished, that is when it goes from playing to idle, paused or on. A
+  player that never reports playing plays the tone once. A player switched
+  off while ringing is left off.
+- On an Echo the sound repeats every five seconds, whatever its length, so a
+  short one leaves a pause and a long one is cut into. Every repetition goes
+  through Amazon's cloud.
+- An Echo plays only Amazon's sounds, through Home Assistant's Alexa
+  integration or Alexa Media Player. Through Music Assistant or any other
+  integration it is treated as an ordinary player and stays silent.
+- A new media player, ringtone or volume applies from the next time the
+  alarm rings, not to one that is ringing.
+- The media player is stored by its entity ID. After renaming that, choose
+  it again.
 - The integration ships its own icon, which Home Assistant only reads from
   version 2026.3 onwards. On older versions the integrations page shows an
   "icon not available" placeholder instead. Everything else works.
@@ -288,6 +343,13 @@ logger:
   `sensor.<a>_next_alarm` shows a point in time in the future. Without a
   selected weekday the alarm rings every day until it disables itself after
   the first wake-up.
+- **The alarm sound stays silent:** check that `select.<a>_media_player`
+  names a player, and the log for a warning about `play_media` or
+  `send_sound`. An Echo that says direct music streaming is not supported
+  was reached through an integration other than the two above. A message
+  that the Home Assistant URL cannot be determined means the URLs under
+  **Settings → System → Network** are not set; one the player cannot reach
+  shows up as the player failing to load the file.
 - **The actions of a phase do not run:** check them under **Configure**. An
   invalid sequence is refused there already; one that became invalid later,
   for example because an integration it uses was removed, is skipped with an

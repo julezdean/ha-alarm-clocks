@@ -19,6 +19,9 @@ export type RoleKey =
   | "preOffset"
   | "postOffset"
   | "autoDismiss"
+  | "volume"
+  | "mediaPlayer"
+  | "ringtone"
   | "ringing"
   | "snoozeActive"
   | "nextAlarm"
@@ -42,6 +45,9 @@ const ROLE_BY_REGISTRY_KEY: Record<string, RoleKey> = {
   "number.pre_offset": "preOffset",
   "number.post_offset": "postOffset",
   "number.auto_dismiss": "autoDismiss",
+  "number.volume": "volume",
+  "select.media_player": "mediaPlayer",
+  "select.ringtone": "ringtone",
   "binary_sensor.ringing": "ringing",
   "binary_sensor.snooze_active": "snoozeActive",
   "sensor.next_alarm": "nextAlarm",

@@ -423,6 +423,7 @@
           "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
         "mdi:chevron-up": "M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z",
         "mdi:chevron-down": "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
+        "mdi:menu-down": "M7,10L12,15L17,10H7Z",
         "mdi:alert-circle-outline":
           "M11,15H13V17H11V15M11,7H13V13H11V7M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20Z",
         "mdi:play-circle-outline":
@@ -647,6 +648,9 @@
         preOffset: ["number", "pre_offset"],
         postOffset: ["number", "post_offset"],
         autoDismiss: ["number", "auto_dismiss"],
+        volume: ["number", "volume"],
+        mediaPlayer: ["select", "media_player"],
+        ringtone: ["select", "ringtone"],
         ringing: ["binary_sensor", "ringing"],
         snoozeActive: ["binary_sensor", "snooze_active"],
         nextAlarm: ["sensor", "next_alarm"],
@@ -663,7 +667,26 @@
         preOffset: { min: 0, max: 120, step: 1, unit_of_measurement: "min" },
         postOffset: { min: 0, max: 120, step: 1, unit_of_measurement: "min" },
         autoDismiss: { min: 0, max: 180, step: 5, unit_of_measurement: "min" },
+        volume: { min: 0, max: 100, step: 5, unit_of_measurement: "%" },
       };
+
+      /**
+       * The media players the integration's select offers, mirrored from
+       * select.py: "none" first, then every media player. Only their names
+       * matter to the card, so they are states without registry entries.
+       */
+      const MEDIA_PLAYERS = {
+        "media_player.bedroom": "Bedroom speaker",
+        "media_player.kitchen": "Kitchen",
+        "media_player.living_room": "Living room",
+        "media_player.echo_bedroom": "Echo Dot bedroom",
+      };
+      const PLAYER_OPTIONS = ["none", ...Object.keys(MEDIA_PLAYERS)];
+      const RINGTONES = ["classic", "digital", "chime", "gentle"];
+      /** An Echo plays Amazon's sounds instead, mirrored from ALEXA_SOUNDS in const.py. */
+      const ECHOES = new Set(["media_player.echo_bedroom"]);
+      const ALEXA_SOUNDS = ["air_horn_03", "amzn_sfx_cat_meow_1x_01", "amzn_sfx_church_bell_1x_02", "amzn_sfx_crowd_applause_01", "amzn_sfx_dog_med_bark_1x_02", "amzn_sfx_doorbell_01", "amzn_sfx_doorbell_chime_01", "amzn_sfx_doorbell_chime_02", "amzn_sfx_large_crowd_cheer_01", "amzn_sfx_lion_roar_02", "amzn_sfx_rooster_crow_01", "amzn_sfx_scifi_alarm_01", "amzn_sfx_scifi_alarm_04", "amzn_sfx_scifi_engines_on_02", "amzn_sfx_scifi_sheilds_up_01", "amzn_sfx_trumpet_bugle_04", "amzn_sfx_wolf_howl_02", "bell_02", "boing_01", "boing_03", "buzzers_pistols_01", "camera_01", "christmas_05", "clock_01", "futuristic_10", "halloween_bats", "halloween_crows", "halloween_footsteps", "halloween_wind", "halloween_wolf", "holiday_halloween_ghost", "horror_10", "med_system_alerts_minimal_dragon_short", "med_system_alerts_minimal_owl_short", "med_system_alerts_minimals_blue_wave_small", "med_system_alerts_minimals_galaxy_short", "med_system_alerts_minimals_panda_short", "med_system_alerts_minimals_tiger_short", "med_ui_success_generic_1-1", "squeaky_12", "zap_01"];
+      const ringtonesFor = (player) => (ECHOES.has(player) ? ALEXA_SOUNDS : RINGTONES);
 
       const store = {
         devices: {},
@@ -675,6 +698,16 @@
       };
 
       const isoNow = () => new Date(NOW()).toISOString();
+
+      for (const [entityId, name] of Object.entries(MEDIA_PLAYERS)) {
+        store.states[entityId] = {
+          entity_id: entityId,
+          state: "idle",
+          last_changed: isoNow(),
+          last_updated: isoNow(),
+          attributes: { friendly_name: name },
+        };
+      }
 
       function setState(entityId, state, attributes) {
         const previous = store.states[entityId];
@@ -790,6 +823,9 @@
         add("preOffset", spec.pre ?? 15, NUMBER_ATTRS.preOffset);
         add("postOffset", spec.post ?? 20, NUMBER_ATTRS.postOffset);
         add("autoDismiss", spec.auto ?? 30, NUMBER_ATTRS.autoDismiss);
+        add("volume", spec.volume ?? 0, NUMBER_ATTRS.volume);
+        add("mediaPlayer", spec.player ?? "none", { options: PLAYER_OPTIONS });
+        add("ringtone", spec.ringtone ?? "classic", { options: ringtonesFor(spec.player) });
         add("ringing", spec.status === "ringing" ? "on" : "off");
         add("snoozeActive", spec.status === "snoozed" ? "on" : "off");
         add("nextAlarm", "unknown", { device_class: "timestamp" });
@@ -875,6 +911,16 @@
           recompute(owner);
         } else if (domain === "number" && service === "set_value" && entityId) {
           setState(entityId, data.value);
+        } else if (domain === "select" && service === "select_option" && entityId) {
+          setState(entityId, data.option);
+          // Like select.py: the tones follow the player, an unfitting one
+          // gives way to the player's default.
+          const map = store.byDevice[store.entities[entityId]?.device_id] ?? {};
+          if (entityId === map.mediaPlayer && map.ringtone) {
+            const options = ringtonesFor(data.option);
+            const current = stateOf(map.ringtone);
+            setState(map.ringtone, options.includes(current) ? current : options === RINGTONES ? "classic" : "amzn_sfx_scifi_alarm_01", { options });
+          }
         } else if (domain === "time" && service === "set_value" && entityId) {
           setState(entityId, data.time);
           recompute(store.entities[entityId]?.device_id);
@@ -933,7 +979,13 @@
       // every value type they render, the empty states, the broken states.
       // ---------------------------------------------------------------------
 
-      const MAIN = addDevice({ id: "d-main", slug: "work", name: "Work" });
+      const MAIN = addDevice({
+        id: "d-main",
+        slug: "work",
+        name: "Work",
+        player: "media_player.bedroom",
+        volume: 35,
+      });
       const WEEKEND = addDevice({
         id: "d-weekend",
         slug: "weekend",
@@ -945,6 +997,15 @@
         post: 30,
         auto: 60,
       });
+      const ECHO_ALARM = addDevice({
+        id: "d-echo",
+        slug: "early",
+        name: "Early",
+        time: "05:45:00",
+        player: "media_player.echo_bedroom",
+        ringtone: "amzn_sfx_scifi_alarm_01",
+        volume: 30,
+      });
       const RINGING = addDevice({
         id: "d-ring",
         slug: "late_shift",
@@ -952,6 +1013,9 @@
         time: "11:30:00",
         status: "ringing",
         ringingForMinutes: 8,
+        player: "media_player.bedroom",
+        ringtone: "chime",
+        volume: 40,
       });
       const SNOOZED = addDevice({
         id: "d-snooze",
@@ -1025,6 +1089,9 @@
           "preOffset",
           "postOffset",
           "autoDismiss",
+          "volume",
+          "mediaPlayer",
+          "ringtone",
           "snoozeButton",
           "dismissButton",
           ...WEEKDAYS.map((_d, i) => "day" + i),
@@ -1050,6 +1117,8 @@
         post: 0,
         auto: 0,
         ringingForMinutes: 61,
+        player: "media_player.kitchen",
+        volume: 0,
       });
       // Every number at its maximum: the plus buttons must be disabled.
       const MAXED = addDevice({
@@ -1062,6 +1131,8 @@
         post: 120,
         auto: 180,
         days: [5, 6],
+        player: "media_player.living_room",
+        volume: 100,
       });
       const LONG_NAME = addDevice({
         id: "d-long",
@@ -1109,6 +1180,9 @@
             { label: "show_days: false", tag: ALARM, config: base(MAIN, { show_days: false }) },
             { label: "show_next_alarm: false", tag: ALARM, config: base(MAIN, { show_next_alarm: false }) },
             { label: "show_settings: false", tag: ALARM, config: base(MAIN, { show_settings: false }) },
+            { label: "show_sound: false", tag: ALARM, config: base(MAIN, { show_sound: false }) },
+            { label: "no speaker chosen", tag: ALARM, config: base(WEEKEND), note: "tone and volume only show with a speaker" },
+            { label: "an Echo as speaker", tag: ALARM, config: base(ECHO_ALARM), note: "Amazon's sounds instead of the bundled tones" },
             { label: "show_test_button: true", tag: ALARM, config: base(MAIN, { show_test_button: true }) },
             { label: "show_test_button while ringing", tag: ALARM, config: base(RINGING, { show_test_button: true }), note: "test is replaced by dismiss" },
             { label: "minute_step: 1", tag: ALARM, config: base(MAIN, { minute_step: 1 }) },
@@ -1140,7 +1214,7 @@
             { label: "one-shot", tag: ALARM, config: base(ONESHOT), note: "no weekday active" },
             { label: "entities missing", tag: ALARM, config: base(PARTIAL), note: "no switch, no weekdays, no numbers" },
             { label: "weekdays unavailable", tag: ALARM, config: base(BROKEN_DAYS), note: "Wed + Thu unavailable" },
-            { label: "every phase off", tag: ALARM, config: base(ZEROS), note: "ringing, but snooze is 0 -> no snooze button" },
+            { label: "every phase off", tag: ALARM, config: base(ZEROS), note: "ringing, but snooze is 0 -> no snooze button; volume 0 keeps the player's own" },
             { label: "numbers at maximum", tag: ALARM, config: base(MAXED) },
             { label: "long device name", tag: ALARM, config: base(LONG_NAME) },
           ],
