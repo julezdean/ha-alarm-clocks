@@ -124,6 +124,26 @@
       },
       "auto_dismiss": {
         "name": "Auto-Dismiss nach"
+      },
+      "volume": {
+        "name": "Lautstärke"
+      }
+    },
+    "select": {
+      "media_player": {
+        "name": "Media Player",
+        "state": {
+          "none": "Kein Ton"
+        }
+      },
+      "ringtone": {
+        "name": "Klingelton",
+        "state": {
+          "classic": "Klassisch",
+          "digital": "Digital",
+          "chime": "Glocke",
+          "gentle": "Sanft"
+        }
       }
     },
     "binary_sensor": {

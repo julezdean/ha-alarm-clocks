@@ -72,6 +72,23 @@ function addDeviceEntities(entities, states, id, slug, opts = {}) {
   add(`sensor.${slug}_post_aktionen_fallig`, "post_due", opts.postDue ?? "unknown");
   add(`button.${slug}_snooze`, "snooze", "unknown");
   add(`button.${slug}_dismiss`, "dismiss", "unknown");
+  add(`number.${slug}_volume`, "volume", String(opts.volume ?? 40), { min: 0, max: 100, step: 5 });
+  add(`select.${slug}_media_player`, "media_player", opts.player ?? "none", {
+    options: ["none", "media_player.schlafzimmer", "media_player.bad"],
+  });
+  add(`select.${slug}_ringtone`, "ringtone", "chime", {
+    options: ["classic", "digital", "chime", "gentle"],
+  });
+  states["media_player.schlafzimmer"] = {
+    entity_id: "media_player.schlafzimmer",
+    state: "idle",
+    attributes: { friendly_name: "Schlafzimmer" },
+  };
+  states["media_player.bad"] = {
+    entity_id: "media_player.bad",
+    state: "idle",
+    attributes: { friendly_name: "Bad" },
+  };
 }
 
 function makeHass(overrides = {}) {
@@ -755,6 +772,87 @@ for (const name of results) {
     }
     assert.equal(calls.length, before);
   });
+}
+
+// --- alarm sound ---------------------------------------------------------------
+{
+  const { hass } = makeHass();
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
+  check("sound: without a speaker only the speaker picker shows", () => {
+    const selects = deepQueryAll(card.shadowRoot, "select");
+    assert.equal(selects.length, 1);
+    const labels = [...selects[0].options].map((option) => option.textContent.trim());
+    assert.deepEqual(labels, ["Kein Ton", "Bad", "Schlafzimmer"]);
+    assert.equal(selects[0].value, "none");
+    assert.doesNotMatch(visibleText(card), /Lautstärke/);
+  });
+  card.remove();
+}
+
+{
+  const { hass, calls } = makeHass({
+    devices: [{ id: DEVICE, slug: "wecker_1", name: "Wecker 1", player: "media_player.bad" }],
+  });
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
+  const [player, ringtone] = deepQueryAll(card.shadowRoot, "select");
+  check("sound: with a speaker, tone and volume show", () => {
+    assert.equal(player.value, "media_player.bad");
+    assert.equal(ringtone.value, "chime");
+    assert.deepEqual(
+      [...ringtone.options].map((option) => option.textContent.trim()),
+      ["Klassisch", "Digital", "Glocke", "Sanft"],
+    );
+    assert.match(visibleText(card), /Lautstärke 40 %/);
+  });
+  check("sound: picking a tone calls select.select_option", () => {
+    ringtone.value = "gentle";
+    ringtone.dispatchEvent(new window.Event("change", { bubbles: true }));
+    assert.deepEqual(calls.at(-1), [
+      "select",
+      "select_option",
+      { option: "gentle" },
+      { entity_id: "select.wecker_1_ringtone" },
+    ]);
+  });
+  card.remove();
+}
+
+{
+  const { hass } = makeHass({
+    devices: [
+      { id: DEVICE, slug: "wecker_1", name: "Wecker 1", player: "media_player.bad", volume: 0 },
+    ],
+  });
+  const card = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, expanded: true }],
+    },
+    hass,
+  );
+  check("sound: volume zero reads as the player's own", () => {
+    assert.match(visibleText(card), /Lautstärke wie eingestellt/);
+  });
+  card.remove();
+
+  const hidden = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      show_sound: false,
+      devices: [{ device_id: DEVICE, expanded: true }],
+    },
+    hass,
+  );
+  check("sound: show_sound: false hides it", () => {
+    assert.equal(deepQueryAll(hidden.shadowRoot, "select").length, 0);
+  });
+  hidden.remove();
 }
 
 console.log(`\n${results.length} checks passed`);

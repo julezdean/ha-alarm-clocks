@@ -7,9 +7,18 @@ import "./alarm-clocks-time-stepper";
 import "./alarm-clocks-setting-row";
 
 import { ALARM_ITEM_TAG, STATUS, STATUS_ICONS } from "../const";
-import { dismiss, setNumber, showMoreInfo, snooze, toggleSwitch, triggerAlarm, setTime } from "../lib/actions";
+import {
+  dismiss,
+  selectOption,
+  setNumber,
+  showMoreInfo,
+  snooze,
+  toggleSwitch,
+  triggerAlarm,
+  setTime,
+} from "../lib/actions";
 import { createLocalizer, languageOf, type Localizer } from "../lib/localize";
-import type { AlarmView } from "../lib/model";
+import type { AlarmView, SoundOption, SoundView } from "../lib/model";
 import { formatAbsolute, formatClock, formatDuration, formatRelative } from "../lib/time";
 import { controlStyles, themeTokens } from "../styles";
 import type { HomeAssistant } from "../types";
@@ -41,6 +50,8 @@ export class MacaAlarmItem extends LitElement {
   @property({ type: Boolean }) public showSettings = true;
 
   @property({ type: Boolean }) public showTestButton = false;
+
+  @property({ type: Boolean }) public showSound = true;
 
   @property({ type: Number }) public minuteStep = 5;
 
@@ -189,6 +200,7 @@ export class MacaAlarmItem extends LitElement {
         ${this._renderHero(view, localize)}
         ${this.showDays ? this._renderDays(view) : nothing}
         ${this._renderActions(view, localize)}
+        ${this.showSound && view.sound ? this._renderSound(view.sound, localize) : nothing}
         ${this.showSettings && view.settings.length ? this._renderSettings(view) : nothing}
       </div>
     `;
@@ -353,6 +365,71 @@ export class MacaAlarmItem extends LitElement {
     `;
   }
 
+  /**
+   * Speaker, ringtone and volume of the built-in alarm sound. Tone and volume
+   * only matter with a speaker, so they only show with one.
+   */
+  private _renderSound(sound: SoundView, localize: Localizer): TemplateResult {
+    return html`
+      <div class="sound">
+        ${this._renderSelect(
+          localize("label.media_player"),
+          sound.mediaPlayerEntity,
+          sound.player,
+          sound.players,
+          localize,
+        )}
+        ${sound.enabled && sound.ringtoneEntity
+          ? this._renderSelect(
+              localize("label.ringtone"),
+              sound.ringtoneEntity,
+              sound.ringtone ?? "",
+              sound.ringtones,
+              localize,
+            )
+          : nothing}
+        ${sound.enabled && sound.volume
+          ? html`<alarm-clocks-setting-row
+              .hass=${this.hass}
+              .setting=${sound.volume}
+              @setting-changed=${this._onSettingChanged}
+              @setting-more-info=${this._onSettingMoreInfo}
+            ></alarm-clocks-setting-row>`
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _renderSelect(
+    label: string,
+    entityId: string,
+    current: string,
+    options: SoundOption[],
+    localize: Localizer,
+  ): TemplateResult {
+    // `selected` on the options rather than `.value` on the select: Lit sets
+    // the property before the options exist, and the browser drops it.
+    return html`
+      <label class="field">
+        <span class="label">${label}</span>
+        <span class="select">
+          <select
+            aria-label=${label}
+            @change=${(event: Event) =>
+              this._select(entityId, (event.target as HTMLSelectElement).value)}
+          >
+            ${options.map(
+              (option) => html`<option value=${option.value} ?selected=${option.value === current}>
+                ${option.labelIsKey ? localize(option.label) : option.label}
+              </option>`,
+            )}
+          </select>
+          <ha-icon icon="mdi:menu-down" aria-hidden="true"></ha-icon>
+        </span>
+      </label>
+    `;
+  }
+
   private _renderSettings(view: AlarmView): TemplateResult {
     return html`
       <div class="settings">
@@ -450,6 +527,12 @@ export class MacaAlarmItem extends LitElement {
   private _onSettingMoreInfo = (event: CustomEvent<{ entityId: string }>): void => {
     this._openEntity(event.detail.entityId);
   };
+
+  private _select(entityId: string, option: string): void {
+    if (this.hass) {
+      void selectOption(this.hass, entityId, option);
+    }
+  }
 
   private _snooze(view: AlarmView): void {
     if (this.hass) {
@@ -736,6 +819,65 @@ export class MacaAlarmItem extends LitElement {
         gap: 2px;
         border-top: 1px solid var(--divider-color);
         padding-top: 6px;
+      }
+
+      .sound {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        border-top: 1px solid var(--divider-color);
+        padding-top: 6px;
+      }
+
+      .field {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 44px;
+      }
+
+      .field .label {
+        flex: 0 0 auto;
+        color: var(--secondary-text-color);
+        font-size: 0.9rem;
+      }
+
+      .select {
+        position: relative;
+        display: flex;
+        flex: 0 1 auto;
+        min-width: 0;
+      }
+
+      select {
+        min-width: 0;
+        max-width: 100%;
+        padding: 8px 32px 8px 12px;
+        border: none;
+        border-radius: 8px;
+        background: var(--alarm-clocks-chip-background);
+        color: var(--primary-text-color);
+        font-family: inherit;
+        font-size: 0.9rem;
+        text-overflow: ellipsis;
+        appearance: none;
+        cursor: pointer;
+      }
+
+      select:focus-visible {
+        outline: 2px solid var(--alarm-clocks-accent);
+        outline-offset: 2px;
+      }
+
+      .select ha-icon {
+        position: absolute;
+        top: 50%;
+        right: 6px;
+        --mdc-icon-size: 20px;
+        color: var(--secondary-text-color);
+        transform: translateY(-50%);
+        pointer-events: none;
       }
 
       @container (max-width: 340px) {

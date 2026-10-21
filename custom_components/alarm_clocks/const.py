@@ -13,6 +13,7 @@ PLATFORMS: Final[list[Platform]] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.TIME,
@@ -37,6 +38,12 @@ CONF_SNOOZE_ACTIONS: Final = "snooze_actions"
 CONF_DISMISS_ACTIONS: Final = "dismiss_actions"
 CONF_POST_ACTIONS: Final = "post_actions"
 CONF_POST_TIMEOUT: Final = "post_timeout"
+
+# The built-in ringtone: which media player rings, with which tone and how
+# loud. Without a media player there is no sound.
+CONF_MEDIA_PLAYER: Final = "media_player"
+CONF_RINGTONE: Final = "ringtone"
+CONF_VOLUME: Final = "volume"
 
 PHASE_PRE: Final = "pre"
 PHASE_ALARM: Final = "alarm"
@@ -73,6 +80,9 @@ DEFAULT_PRE_OFFSET: Final = 0
 DEFAULT_POST_OFFSET: Final = 0
 DEFAULT_AUTO_DISMISS: Final = 10
 DEFAULT_POST_TIMEOUT: Final = 60
+DEFAULT_RINGTONE: Final = "classic"
+# Zero leaves the volume of the media player as it is.
+DEFAULT_VOLUME: Final = 0
 
 MIN_SNOOZE_DURATION: Final = 0
 MAX_SNOOZE_DURATION: Final = 30
@@ -82,6 +92,14 @@ MIN_AUTO_DISMISS: Final = 0
 MAX_AUTO_DISMISS: Final = 120
 MIN_POST_TIMEOUT: Final = 1
 MAX_POST_TIMEOUT: Final = 240
+MIN_VOLUME: Final = 0
+MAX_VOLUME: Final = 100
+VOLUME_STEP: Final = 5
+
+# Bundled ringtones, one WAV file each in sounds/ (see scripts/make_ringtones.py).
+RINGTONES: Final = ("classic", "digital", "chime", "gentle")
+# Option of the media player select that means no sound at all.
+MEDIA_PLAYER_NONE: Final = "none"
 
 # Weekdays in the order of datetime.weekday() (0 = Monday)
 WEEKDAYS: Final = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -160,6 +178,12 @@ RESUME_GRACE: Final = timedelta(hours=1)
 CARD_FILENAME: Final = "alarm-clocks-card.js"
 CARD_URL: Final = f"/{DOMAIN}/{CARD_FILENAME}"
 CARD_REGISTERED: Final = "card_registered"
+
+# ---------------------------------------------------------------------------
+# Bundled ringtones
+# ---------------------------------------------------------------------------
+SOUNDS_URL: Final = f"/{DOMAIN}/sounds"
+SOUNDS_REGISTERED: Final = "sounds_registered"
 
 STORAGE_VERSION: Final = 1
 STORAGE_KEY_TEMPLATE: Final = f"{DOMAIN}.{{entry_id}}"

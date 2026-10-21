@@ -124,6 +124,26 @@
       },
       "auto_dismiss": {
         "name": "Auto dismiss after"
+      },
+      "volume": {
+        "name": "Volume"
+      }
+    },
+    "select": {
+      "media_player": {
+        "name": "Media player",
+        "state": {
+          "none": "No sound"
+        }
+      },
+      "ringtone": {
+        "name": "Ringtone",
+        "state": {
+          "classic": "Classic",
+          "digital": "Digital",
+          "chime": "Chime",
+          "gentle": "Gentle"
+        }
       }
     },
     "binary_sensor": {

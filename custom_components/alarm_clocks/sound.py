@@ -1,0 +1,199 @@
+"""The built-in ringtone of an alarm clock.
+
+While the alarm rings, a bundled tone plays on the chosen media player, at
+the chosen volume, over and over: a media player plays a file once, so the
+tone is started again whenever the player reports it has finished. Snooze,
+dismiss and switching the alarm clock off stop it and give the player its
+old volume back.
+
+This runs beside the action sequences, not through them: they are the
+user's, and the sound is not one of their steps.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Any
+
+import voluptuous as vol
+
+from homeassistant.components.media_player import (
+    ATTR_MEDIA_CONTENT_ID,
+    ATTR_MEDIA_CONTENT_TYPE,
+    ATTR_MEDIA_VOLUME_LEVEL,
+    DOMAIN as MEDIA_PLAYER_DOMAIN,
+    SERVICE_PLAY_MEDIA,
+    MediaPlayerState,
+    MediaType,
+)
+from homeassistant.components.media_player.browse_media import (
+    async_process_play_media_url,
+)
+from homeassistant.const import ATTR_ENTITY_ID, SERVICE_MEDIA_STOP, SERVICE_VOLUME_SET
+from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.event import async_track_state_change_event
+
+from .const import SOUNDS_URL
+
+_LOGGER = logging.getLogger(__name__)
+
+# States a player falls back to once a file has played to its end. A player
+# switched off or gone unavailable is left alone: someone meant that.
+_FINISHED_STATES = frozenset(
+    {MediaPlayerState.IDLE, MediaPlayerState.PAUSED, MediaPlayerState.ON}
+)
+
+
+def ringtone_path(ringtone: str) -> str:
+    """The path the bundled ringtone is served at."""
+    return f"{SOUNDS_URL}/{ringtone}.wav"
+
+
+class AlarmClockSound:
+    """Plays the ringtone of one alarm clock and stops it again."""
+
+    def __init__(self, hass: HomeAssistant, title: str) -> None:
+        """Set up without anything playing."""
+        self.hass = hass
+        self._title = title
+        # Start, replay and stop each make several service calls; the lock
+        # keeps a stop from landing between the calls of a start.
+        self._lock = asyncio.Lock()
+        self._player: str | None = None
+        self._url: str | None = None
+        self._unsub: CALLBACK_TYPE | None = None
+        # Set once the player was seen playing the tone, so that a player
+        # leaving what it played before the alarm does not count as the tone
+        # having finished.
+        self._seen_playing = False
+
+    @property
+    def active(self) -> bool:
+        """True while the ringtone is meant to be playing."""
+        return self._player is not None
+
+    async def async_start(self, player: str, ringtone: str, volume: int) -> float | None:
+        """Start ringing on a player.
+
+        Returns the volume level the player had before, when the alarm set
+        its own, so that it can be restored; None when there is nothing to
+        restore.
+        """
+        async with self._lock:
+            self._release()
+            try:
+                url = async_process_play_media_url(self.hass, ringtone_path(ringtone))
+            except HomeAssistantError as err:
+                _LOGGER.error("%s: the ringtone cannot be played: %s", self._title, err)
+                return None
+
+            previous: float | None = None
+            if volume > 0:
+                state = self.hass.states.get(player)
+                level = state.attributes.get(ATTR_MEDIA_VOLUME_LEVEL) if state else None
+                if isinstance(level, (int, float)):
+                    previous = float(level)
+                await self._async_call(
+                    SERVICE_VOLUME_SET, player, {ATTR_MEDIA_VOLUME_LEVEL: volume / 100}
+                )
+
+            self._player = player
+            self._url = url
+            self._unsub = async_track_state_change_event(
+                self.hass, [player], self._handle_player_change
+            )
+            await self._async_play()
+            return previous
+
+    async def async_stop(self, restore_volume: float | None) -> None:
+        """Stop ringing and restore the player's volume, if one is given."""
+        async with self._lock:
+            player = self._player
+            self._release()
+            if player is None:
+                return
+            await self._async_call(SERVICE_MEDIA_STOP, player)
+            if restore_volume is not None:
+                await self._async_call(
+                    SERVICE_VOLUME_SET, player, {ATTR_MEDIA_VOLUME_LEVEL: restore_volume}
+                )
+
+    @callback
+    def async_shutdown(self) -> None:
+        """Stop following the player, without touching it.
+
+        For unloading: a restart while ringing starts the tone again anyway,
+        and while Home Assistant stops, the player is not reachable reliably.
+        """
+        self._release()
+
+    @callback
+    def _release(self) -> None:
+        if self._unsub is not None:
+            self._unsub()
+            self._unsub = None
+        self._player = None
+        self._url = None
+        self._seen_playing = False
+
+    @callback
+    def _handle_player_change(self, event: Event[EventStateChangedData]) -> None:
+        """Play the tone again once the player has finished it."""
+        old = event.data["old_state"]
+        new = event.data["new_state"]
+        if self._player is None or old is None or new is None:
+            return
+        if new.state == MediaPlayerState.PLAYING:
+            self._seen_playing = True
+            return
+        if (
+            self._seen_playing
+            and old.state == MediaPlayerState.PLAYING
+            and new.state in _FINISHED_STATES
+        ):
+            self.hass.async_create_task(self._async_replay())
+
+    async def _async_replay(self) -> None:
+        async with self._lock:
+            if self._player is not None:
+                await self._async_play()
+
+    async def _async_play(self) -> None:
+        """Play the tone once; the caller holds the lock."""
+        assert self._player is not None and self._url is not None
+        self._seen_playing = False
+        await self._async_call(
+            SERVICE_PLAY_MEDIA,
+            self._player,
+            {
+                ATTR_MEDIA_CONTENT_ID: self._url,
+                ATTR_MEDIA_CONTENT_TYPE: MediaType.MUSIC,
+            },
+        )
+        # A player that was playing something else may report the tone as
+        # playing without a state change in between.
+        state = self.hass.states.get(self._player) if self._player else None
+        if state is not None and state.state == MediaPlayerState.PLAYING:
+            self._seen_playing = True
+
+    async def _async_call(
+        self, service: str, player: str, data: dict[str, Any] | None = None
+    ) -> None:
+        """Call a media player service; a failure is logged, never raised.
+
+        A player that is unreachable at six in the morning must not keep the
+        alarm clock from ringing, snoozing or being dismissed.
+        """
+        try:
+            await self.hass.services.async_call(
+                MEDIA_PLAYER_DOMAIN,
+                service,
+                {ATTR_ENTITY_ID: player, **(data or {})},
+                blocking=True,
+            )
+        except (HomeAssistantError, vol.Invalid) as err:
+            _LOGGER.warning(
+                "%s: %s on %s failed: %s", self._title, service, player, err
+            )

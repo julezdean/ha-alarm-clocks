@@ -4,6 +4,26 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [3.1.0] - 2026-10-21
+
+The alarm clock can now ring by itself: pick a media player and a ringtone,
+and it plays while the alarm rings and stops on snooze and dismiss. Without a
+media player, the default, nothing changes.
+
+### Added
+
+- A built-in alarm sound. `select.<a>_media_player` picks the player and
+  `select.<a>_ringtone` one of four bundled tones (Classic, Digital, Chime,
+  Gentle). While the alarm rings the tone plays over and over; snooze,
+  dismiss, the automatic dismiss and switching the alarm clock off stop it,
+  and it starts over when a snooze ends. The player has to reach Home
+  Assistant under its configured URL, which serves the tones.
+- `number.<a>_volume`, the volume the player rings at. The previous volume is
+  restored when the sound stops, also after a restart while ringing. Zero,
+  the default, leaves the volume alone.
+- The card shows speaker, ringtone and volume on an expanded alarm, under
+  the new option `show_sound`, on by default.
+
 ## [3.0.0] - 2026-09-28
 
 Every phase of a wake-up now has a sequence of actions instead of a single
