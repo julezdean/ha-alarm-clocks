@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
-## [3.1.0] - 2026-10-21
+## [Unreleased]
 
 The alarm clock can now ring by itself: pick a media player and a ringtone,
 and it plays while the alarm rings and stops on snooze and dismiss. Without a
