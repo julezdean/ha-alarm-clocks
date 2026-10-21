@@ -8,7 +8,8 @@ media player reports it has finished, for as long as the alarm rings.
     python scripts/make_ringtones.py
 
 WAV rather than MP3 because the standard library writes it without an
-encoder, and every common media player plays it.
+encoder. A player that fetches a file from a URL plays it; an Echo fetches
+nothing and gets a sound from Amazon's library instead (see sound.py).
 """
 
 import math

@@ -35,7 +35,7 @@ the card from source.
 - **Keyboard-free time input.** Hours and minutes have their own step buttons; holding one repeats and speeds up. Arrow keys work on both segments, and the mouse wheel steps a segment once it is focused.
 - **Alarm sound** on an expanded alarm: the speaker, the ringtone and the
   volume, as plain dropdowns and a stepper. Without a speaker only the
-  speaker shows.
+  speaker shows; with an Echo the ringtones are Amazon's sounds, by name.
 - **Settings row** for snooze duration, pre offset, post offset and auto
   dismiss, with the limits taken straight from the number entities.
 - **Robust:** an alarm clock with missing, disabled or unavailable entities is

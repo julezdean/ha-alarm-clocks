@@ -1,4 +1,8 @@
-"""Select entities: the media player that rings and the ringtone it plays."""
+"""Select entities: the media player that rings and the ringtone it plays.
+
+The ringtones depend on the player: the bundled files on most players, a
+sound from Amazon's library on an Echo (see sound.py).
+"""
 
 from __future__ import annotations
 
@@ -12,9 +16,10 @@ from homeassistant.helpers.event import (
     async_track_state_removed_domain,
 )
 
-from .const import CONF_MEDIA_PLAYER, CONF_RINGTONE, MEDIA_PLAYER_NONE, RINGTONES
+from .const import CONF_MEDIA_PLAYER, CONF_RINGTONE, MEDIA_PLAYER_NONE
 from .coordinator import AlarmClockConfigEntry, AlarmClockCoordinator
 from .entity import AlarmClockEntity
+from .sound import default_ringtone_for, effective_ringtone, ringtones_for
 
 
 async def async_setup_entry(
@@ -77,27 +82,41 @@ class AlarmClockMediaPlayerSelect(AlarmClockEntity, SelectEntity):
         return self.config.media_player or MEDIA_PLAYER_NONE
 
     async def async_select_option(self, option: str) -> None:
-        """Store the chosen player; it rings from the next alarm on."""
-        await self.coordinator.async_set_options(
-            **{CONF_MEDIA_PLAYER: None if option == MEDIA_PLAYER_NONE else option}
-        )
+        """Store the chosen player; it rings from the next alarm on.
+
+        A ringtone the new player cannot play gives way to its default, so
+        that the ringtone select never shows a tone that will not sound.
+        """
+        player = None if option == MEDIA_PLAYER_NONE else option
+        values: dict[str, str | None] = {CONF_MEDIA_PLAYER: player}
+        if player is not None and self.config.ringtone not in ringtones_for(
+            self.hass, player
+        ):
+            values[CONF_RINGTONE] = default_ringtone_for(self.hass, player)
+        await self.coordinator.async_set_options(**values)
 
 
 class AlarmClockRingtoneSelect(AlarmClockEntity, SelectEntity):
-    """One of the bundled ringtones."""
+    """One of the tones the chosen media player can play."""
 
     _attr_icon = "mdi:music-note"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_options = list(RINGTONES)
 
     def __init__(self, coordinator: AlarmClockCoordinator) -> None:
         """Set up the select."""
         super().__init__(coordinator, CONF_RINGTONE)
 
     @property
+    def options(self) -> list[str]:
+        """The bundled tones, or Amazon's sounds for an Echo."""
+        return list(ringtones_for(self.hass, self.config.media_player))
+
+    @property
     def current_option(self) -> str:
-        """The chosen ringtone."""
-        return self.config.ringtone
+        """The chosen ringtone, or the player's default if it cannot play it."""
+        return effective_ringtone(
+            self.hass, self.config.media_player, self.config.ringtone
+        )
 
     async def async_select_option(self, option: str) -> None:
         """Store the chosen ringtone; it plays from the next alarm on."""

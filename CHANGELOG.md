@@ -18,6 +18,12 @@ media player, the default, nothing changes.
   dismiss, the automatic dismiss and switching the alarm clock off stop it,
   and it starts over when a snooze ends. The player has to reach Home
   Assistant under its configured URL, which serves the tones.
+- An Echo rings with a sound from Amazon's library, since Amazon does not let
+  it play a file from a URL. Through Home Assistant's Alexa integration it
+  gets `alexa_devices.send_sound`, through Alexa Media Player `play_media` of
+  type `sound`. Its ringtones are the 41 sounds the Alexa integration offers,
+  repeated every five seconds; switching between an Echo and another player
+  picks that player's default tone when the chosen one does not fit.
 - `number.<a>_volume`, the volume the player rings at. The previous volume is
   restored when the sound stops, also after a restart while ringing. Zero,
   the default, leaves the volume alone.

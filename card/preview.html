@@ -679,9 +679,14 @@
         "media_player.bedroom": "Bedroom speaker",
         "media_player.kitchen": "Kitchen",
         "media_player.living_room": "Living room",
+        "media_player.echo_bedroom": "Echo Dot bedroom",
       };
       const PLAYER_OPTIONS = ["none", ...Object.keys(MEDIA_PLAYERS)];
       const RINGTONES = ["classic", "digital", "chime", "gentle"];
+      /** An Echo plays Amazon's sounds instead, mirrored from ALEXA_SOUNDS in const.py. */
+      const ECHOES = new Set(["media_player.echo_bedroom"]);
+      const ALEXA_SOUNDS = ["air_horn_03", "amzn_sfx_cat_meow_1x_01", "amzn_sfx_church_bell_1x_02", "amzn_sfx_crowd_applause_01", "amzn_sfx_dog_med_bark_1x_02", "amzn_sfx_doorbell_01", "amzn_sfx_doorbell_chime_01", "amzn_sfx_doorbell_chime_02", "amzn_sfx_large_crowd_cheer_01", "amzn_sfx_lion_roar_02", "amzn_sfx_rooster_crow_01", "amzn_sfx_scifi_alarm_01", "amzn_sfx_scifi_alarm_04", "amzn_sfx_scifi_engines_on_02", "amzn_sfx_scifi_sheilds_up_01", "amzn_sfx_trumpet_bugle_04", "amzn_sfx_wolf_howl_02", "bell_02", "boing_01", "boing_03", "buzzers_pistols_01", "camera_01", "christmas_05", "clock_01", "futuristic_10", "halloween_bats", "halloween_crows", "halloween_footsteps", "halloween_wind", "halloween_wolf", "holiday_halloween_ghost", "horror_10", "med_system_alerts_minimal_dragon_short", "med_system_alerts_minimal_owl_short", "med_system_alerts_minimals_blue_wave_small", "med_system_alerts_minimals_galaxy_short", "med_system_alerts_minimals_panda_short", "med_system_alerts_minimals_tiger_short", "med_ui_success_generic_1-1", "squeaky_12", "zap_01"];
+      const ringtonesFor = (player) => (ECHOES.has(player) ? ALEXA_SOUNDS : RINGTONES);
 
       const store = {
         devices: {},
@@ -820,7 +825,7 @@
         add("autoDismiss", spec.auto ?? 30, NUMBER_ATTRS.autoDismiss);
         add("volume", spec.volume ?? 0, NUMBER_ATTRS.volume);
         add("mediaPlayer", spec.player ?? "none", { options: PLAYER_OPTIONS });
-        add("ringtone", spec.ringtone ?? "classic", { options: RINGTONES });
+        add("ringtone", spec.ringtone ?? "classic", { options: ringtonesFor(spec.player) });
         add("ringing", spec.status === "ringing" ? "on" : "off");
         add("snoozeActive", spec.status === "snoozed" ? "on" : "off");
         add("nextAlarm", "unknown", { device_class: "timestamp" });
@@ -908,6 +913,14 @@
           setState(entityId, data.value);
         } else if (domain === "select" && service === "select_option" && entityId) {
           setState(entityId, data.option);
+          // Like select.py: the tones follow the player, an unfitting one
+          // gives way to the player's default.
+          const map = store.byDevice[store.entities[entityId]?.device_id] ?? {};
+          if (entityId === map.mediaPlayer && map.ringtone) {
+            const options = ringtonesFor(data.option);
+            const current = stateOf(map.ringtone);
+            setState(map.ringtone, options.includes(current) ? current : options === RINGTONES ? "classic" : "amzn_sfx_scifi_alarm_01", { options });
+          }
         } else if (domain === "time" && service === "set_value" && entityId) {
           setState(entityId, data.time);
           recompute(store.entities[entityId]?.device_id);
@@ -983,6 +996,15 @@
         pre: 20,
         post: 30,
         auto: 60,
+      });
+      const ECHO_ALARM = addDevice({
+        id: "d-echo",
+        slug: "early",
+        name: "Early",
+        time: "05:45:00",
+        player: "media_player.echo_bedroom",
+        ringtone: "amzn_sfx_scifi_alarm_01",
+        volume: 30,
       });
       const RINGING = addDevice({
         id: "d-ring",
@@ -1160,6 +1182,7 @@
             { label: "show_settings: false", tag: ALARM, config: base(MAIN, { show_settings: false }) },
             { label: "show_sound: false", tag: ALARM, config: base(MAIN, { show_sound: false }) },
             { label: "no speaker chosen", tag: ALARM, config: base(WEEKEND), note: "tone and volume only show with a speaker" },
+            { label: "an Echo as speaker", tag: ALARM, config: base(ECHO_ALARM), note: "Amazon's sounds instead of the bundled tones" },
             { label: "show_test_button: true", tag: ALARM, config: base(MAIN, { show_test_button: true }) },
             { label: "show_test_button while ringing", tag: ALARM, config: base(RINGING, { show_test_button: true }), note: "test is replaced by dismiss" },
             { label: "minute_step: 1", tag: ALARM, config: base(MAIN, { minute_step: 1 }) },

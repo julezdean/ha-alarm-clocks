@@ -98,6 +98,60 @@ VOLUME_STEP: Final = 5
 
 # Bundled ringtones, one WAV file each in sounds/ (see scripts/make_ringtones.py).
 RINGTONES: Final = ("classic", "digital", "chime", "gentle")
+
+# An Echo plays no file from a URL, only sounds from Amazon's own library.
+# These are the ones Home Assistant's alexa_devices integration offers; Alexa
+# Media Player plays the same IDs.
+ALEXA_SOUNDS: Final = (
+    "air_horn_03",
+    "amzn_sfx_cat_meow_1x_01",
+    "amzn_sfx_church_bell_1x_02",
+    "amzn_sfx_crowd_applause_01",
+    "amzn_sfx_dog_med_bark_1x_02",
+    "amzn_sfx_doorbell_01",
+    "amzn_sfx_doorbell_chime_01",
+    "amzn_sfx_doorbell_chime_02",
+    "amzn_sfx_large_crowd_cheer_01",
+    "amzn_sfx_lion_roar_02",
+    "amzn_sfx_rooster_crow_01",
+    "amzn_sfx_scifi_alarm_01",
+    "amzn_sfx_scifi_alarm_04",
+    "amzn_sfx_scifi_engines_on_02",
+    "amzn_sfx_scifi_sheilds_up_01",
+    "amzn_sfx_trumpet_bugle_04",
+    "amzn_sfx_wolf_howl_02",
+    "bell_02",
+    "boing_01",
+    "boing_03",
+    "buzzers_pistols_01",
+    "camera_01",
+    "christmas_05",
+    "clock_01",
+    "futuristic_10",
+    "halloween_bats",
+    "halloween_crows",
+    "halloween_footsteps",
+    "halloween_wind",
+    "halloween_wolf",
+    "holiday_halloween_ghost",
+    "horror_10",
+    "med_system_alerts_minimal_dragon_short",
+    "med_system_alerts_minimal_owl_short",
+    "med_system_alerts_minimals_blue_wave_small",
+    "med_system_alerts_minimals_galaxy_short",
+    "med_system_alerts_minimals_panda_short",
+    "med_system_alerts_minimals_tiger_short",
+    "med_ui_success_generic_1-1",
+    "squeaky_12",
+    "zap_01",
+)
+DEFAULT_ALEXA_SOUND: Final = "amzn_sfx_scifi_alarm_01"
+PLATFORM_ALEXA_DEVICES: Final = "alexa_devices"
+PLATFORM_ALEXA_MEDIA: Final = "alexa_media"
+# An Echo reports no state while it plays a sound, so the sound is repeated
+# on a clock instead of when it has finished. Every repetition goes through
+# Amazon's cloud, which is why this is not shorter.
+ALEXA_REPEAT: Final = timedelta(seconds=5)
 # Option of the media player select that means no sound at all.
 MEDIA_PLAYER_NONE: Final = "none"
 

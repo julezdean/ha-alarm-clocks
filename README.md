@@ -104,6 +104,18 @@ the media player has to reach Home Assistant under the URL set in
 **Settings → System → Network**. Without a media player, the default, the
 alarm stays silent, as in earlier versions.
 
+An Echo is different: Amazon does not let it play a file from a URL. With an
+Echo chosen, the ringtones are the sounds of Amazon's own library instead,
+the 41 that Home Assistant's
+[Alexa integration](https://www.home-assistant.io/integrations/alexa_devices/)
+offers, from Sirens to Church bell. They go through that integration's
+`alexa_devices.send_sound`, or for an Echo from
+[Alexa Media Player](https://github.com/alandtse/alexa_media_player)
+through `play_media` of type `sound`. An Echo reports nothing while it plays
+one, so the sound is repeated every five seconds rather than when it ends.
+Switching between an Echo and another player picks that player's default
+tone — Sirens or Classic — when the chosen one does not fit.
+
 The sound runs beside the alarm actions, not as one of them. Music that the
 alarm actions start still needs dismiss actions to stop it.
 
@@ -170,7 +182,7 @@ For an alarm clock named `Alarm 1`:
 | `number.alarm_1_post_offset` | Minutes after the dismiss for the post phase (0–60, 0 = no post phase) |
 | `number.alarm_1_auto_dismiss` | Minutes until the automatic dismiss (0 = off) |
 | `select.alarm_1_media_player` | Media player the alarm sound plays on (`none` = no sound) |
-| `select.alarm_1_ringtone` | Ringtone: `classic`, `digital`, `chime`, `gentle` |
+| `select.alarm_1_ringtone` | Ringtone: `classic`, `digital`, `chime`, `gentle`; for an Echo one of Amazon's sounds |
 | `number.alarm_1_volume` | Volume while ringing in percent (0–100, 0 = leave the player's volume alone) |
 | `binary_sensor.alarm_1_ringing` | The alarm is currently ringing (read-only) |
 | `sensor.alarm_1_next_alarm` | Next alarm time; the end of a snooze takes precedence |
@@ -302,6 +314,12 @@ actions:
   finished, that is when it goes from playing to idle, paused or on. A
   player that never reports playing plays the tone once. A player switched
   off while ringing is left off.
+- On an Echo the sound repeats every five seconds, whatever its length, so a
+  short one leaves a pause and a long one is cut into. Every repetition goes
+  through Amazon's cloud.
+- An Echo plays only Amazon's sounds, through Home Assistant's Alexa
+  integration or Alexa Media Player. Through Music Assistant or any other
+  integration it is treated as an ordinary player and stays silent.
 - A new media player, ringtone or volume applies from the next time the
   alarm rings, not to one that is ringing.
 - The media player is stored by its entity ID. After renaming that, choose
@@ -326,7 +344,9 @@ logger:
   selected weekday the alarm rings every day until it disables itself after
   the first wake-up.
 - **The alarm sound stays silent:** check that `select.<a>_media_player`
-  names a player, and the log for a warning about `play_media`. A message
+  names a player, and the log for a warning about `play_media` or
+  `send_sound`. An Echo that says direct music streaming is not supported
+  was reached through an integration other than the two above. A message
   that the Home Assistant URL cannot be determined means the URLs under
   **Settings → System → Network** are not set; one the player cannot reach
   shows up as the player failing to load the file.

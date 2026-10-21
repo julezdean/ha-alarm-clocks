@@ -820,6 +820,29 @@ for (const name of results) {
       { entity_id: "select.wecker_1_ringtone" },
     ]);
   });
+  // An Echo as speaker: the integration offers Amazon's sounds instead. A new
+  // states object with a new state in it, as Home Assistant hands them out.
+  card.hass = {
+    ...hass,
+    states: {
+      ...hass.states,
+      "select.wecker_1_ringtone": {
+        ...hass.states["select.wecker_1_ringtone"],
+        state: "amzn_sfx_scifi_alarm_01",
+        attributes: { options: ["amzn_sfx_scifi_alarm_01", "bell_02", "clock_01"] },
+      },
+    },
+  };
+  await card.updateComplete;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  check("sound: an Echo's Amazon sounds read as their names, not their IDs", () => {
+    const [, tones] = deepQueryAll(card.shadowRoot, "select");
+    assert.deepEqual(
+      [...tones.options].map((option) => option.textContent.trim()),
+      ["Sirenen", "Glocken", "Tickende Uhr"],
+    );
+    assert.equal(tones.value, "amzn_sfx_scifi_alarm_01");
+  });
   card.remove();
 }
 

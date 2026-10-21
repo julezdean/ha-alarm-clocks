@@ -15,11 +15,14 @@ from pytest_homeassistant_custom_component.common import (
 
 from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
 from homeassistant.core_config import async_process_ha_core_config
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from custom_components.alarm_clocks.const import (
+    ALEXA_SOUNDS,
     CONF_MEDIA_PLAYER,
     CONF_RINGTONE,
     CONF_VOLUME,
+    DEFAULT_ALEXA_SOUND,
 )
 
 PLAYER = "media_player.bedroom"
@@ -51,12 +54,13 @@ async def calls(hass: HomeAssistant) -> list[ServiceCall]:
     recorded: list[ServiceCall] = []
     for service in ("play_media", "media_stop", "volume_set"):
         async_mock_service(hass, "media_player", service)
+    async_mock_service(hass, "alexa_devices", "send_sound")
 
     # A callback, so that a call is recorded the moment it is made and a
     # clear() in a test cannot race a recording still on its way.
     @callback
     def _record(event: Event) -> None:
-        if event.data["domain"] == "media_player":
+        if event.data["domain"] in ("media_player", "alexa_devices"):
             recorded.append(event.data)
 
     hass.bus.async_listen("call_service", _record)
@@ -335,3 +339,161 @@ async def test_ringtones_are_served(
         response = await client.get(f"/alarm_clocks/sounds/{ringtone}.wav")
         assert response.status == 200, ringtone
         assert (await response.read())[:4] == b"RIFF"
+
+
+# ---------------------------------------------------------------------------
+# Echo: a sound from Amazon's library, repeated on a clock
+# ---------------------------------------------------------------------------
+ECHO = "media_player.echo_bedroom"
+
+
+def _add_echo(hass: HomeAssistant, platform: str) -> str | None:
+    """An Echo of the given Alexa integration, at 30 %; returns its device ID."""
+    device_id = None
+    if platform == "alexa_devices":
+        entry = MockConfigEntry(domain="alexa_devices")
+        entry.add_to_hass(hass)
+        device_id = dr.async_get(hass).async_get_or_create(
+            config_entry_id=entry.entry_id, identifiers={("alexa_devices", "G1")}
+        ).id
+    er.async_get(hass).async_get_or_create(
+        "media_player",
+        platform,
+        "G1",
+        suggested_object_id="echo_bedroom",
+        device_id=device_id,
+    )
+    hass.states.async_set(ECHO, "idle", {"volume_level": 0.3})
+    return device_id
+
+
+def _echo_summary(calls: list[Any]) -> list[tuple[str, Any]]:
+    out = []
+    for call in calls:
+        data = call["service_data"]
+        if call["service"] == "send_sound":
+            out.append(("send_sound", (data["device_id"], data["sound"])))
+        elif call["service"] == "play_media":
+            assert data["entity_id"] == ECHO
+            out.append(("play_media", (data["media_content_type"], data["media_content_id"])))
+        else:
+            assert data["entity_id"] == ECHO
+            out.append((call["service"], data.get("volume_level")))
+    return out
+
+
+async def test_echo_through_alexa_devices(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    calls: list[Any],
+    setup_alarm: MockConfigEntry,
+) -> None:
+    """send_sound to the Echo's device, again every 5 s, until the dismiss."""
+    device_id = _add_echo(hass, "alexa_devices")
+    coordinator = setup_alarm.runtime_data
+    await coordinator.async_set_options(
+        **{CONF_MEDIA_PLAYER: ECHO, CONF_RINGTONE: "bell_02"}
+    )
+
+    await coordinator.async_trigger_alarm()
+    await hass.async_block_till_done()
+    sound = ("send_sound", (device_id, "bell_02"))
+    assert _echo_summary(calls) == [("volume_set", 0.5), sound]
+
+    calls.clear()
+    await _advance(hass, freezer, seconds=5)
+    assert _echo_summary(calls) == [sound]
+
+    calls.clear()
+    await coordinator.async_dismiss()
+    await _advance(hass, freezer, seconds=10)
+    # Nothing to stop on an Echo: no more repetitions, the volume back.
+    assert _echo_summary(calls) == [("volume_set", 0.3)]
+
+
+async def test_echo_through_alexa_media(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    calls: list[Any],
+    setup_alarm: MockConfigEntry,
+) -> None:
+    """Alexa Media Player gets play_media of type sound, repeated the same way."""
+    _add_echo(hass, "alexa_media")
+    coordinator = setup_alarm.runtime_data
+    await coordinator.async_set_options(
+        **{CONF_MEDIA_PLAYER: ECHO, CONF_VOLUME: 0, CONF_RINGTONE: "bell_02"}
+    )
+
+    await coordinator.async_trigger_alarm()
+    await _advance(hass, freezer, seconds=5)
+    await coordinator.async_snooze()
+    await _advance(hass, freezer, seconds=10)
+
+    sound = ("play_media", ("sound", "bell_02"))
+    assert _echo_summary(calls) == [sound, sound]
+
+
+async def test_echo_loop_ignores_the_player_state(
+    hass: HomeAssistant, calls: list[Any], setup_alarm: MockConfigEntry
+) -> None:
+    """An Echo going from playing to idle does not start the sound again."""
+    _add_echo(hass, "alexa_devices")
+    coordinator = setup_alarm.runtime_data
+    await coordinator.async_set_options(**{CONF_MEDIA_PLAYER: ECHO})
+    await coordinator.async_trigger_alarm()
+    calls.clear()
+
+    hass.states.async_set(ECHO, "playing", {"volume_level": 0.5})
+    hass.states.async_set(ECHO, "idle", {"volume_level": 0.5})
+    await hass.async_block_till_done()
+    assert calls == []
+
+
+async def test_ringtones_follow_the_player(
+    hass: HomeAssistant, calls: list[Any], setup_alarm: MockConfigEntry
+) -> None:
+    """An Echo offers Amazon's sounds; switching to it drops a bundled tone."""
+    _add_echo(hass, "alexa_devices")
+    ringtone = "select.alarm_1_ringtone"
+    assert hass.states.get(ringtone).attributes["options"] == [
+        "classic",
+        "digital",
+        "chime",
+        "gentle",
+    ]
+
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": "select.alarm_1_media_player", "option": ECHO},
+        blocking=True,
+    )
+    state = hass.states.get(ringtone)
+    assert state.attributes["options"] == list(ALEXA_SOUNDS)
+    assert state.state == DEFAULT_ALEXA_SOUND
+    assert setup_alarm.runtime_data.config.ringtone == DEFAULT_ALEXA_SOUND
+
+    # Back to a speaker that plays files: the Amazon sound gives way again.
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": "select.alarm_1_media_player", "option": PLAYER},
+        blocking=True,
+    )
+    assert hass.states.get(ringtone).state == "classic"
+
+
+async def test_unfitting_stored_ringtone_falls_back(
+    hass: HomeAssistant, calls: list[Any], setup_alarm: MockConfigEntry
+) -> None:
+    """A tone stored for another kind of player rings as the player's default."""
+    device_id = _add_echo(hass, "alexa_devices")
+    coordinator = setup_alarm.runtime_data
+    # Written past the select, as an automation could: "chime" is a file.
+    await coordinator.async_set_options(**{CONF_MEDIA_PLAYER: ECHO})
+    assert coordinator.config.ringtone == "chime"
+    assert hass.states.get("select.alarm_1_ringtone").state == DEFAULT_ALEXA_SOUND
+
+    await coordinator.async_trigger_alarm()
+    await hass.async_block_till_done()
+    assert ("send_sound", (device_id, DEFAULT_ALEXA_SOUND)) in _echo_summary(calls)

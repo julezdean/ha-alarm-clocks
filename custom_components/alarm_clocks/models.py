@@ -30,7 +30,6 @@ from .const import (
     DEFAULT_RINGTONE,
     DEFAULT_SNOOZE_DURATION,
     DEFAULT_VOLUME,
-    RINGTONES,
 )
 
 
@@ -131,11 +130,9 @@ class AlarmClockConfig:
                 for phase, key in ACTION_KEYS.items()
             },
             media_player=options.get(CONF_MEDIA_PLAYER) or None,
-            ringtone=(
-                options.get(CONF_RINGTONE)
-                if options.get(CONF_RINGTONE) in RINGTONES
-                else DEFAULT_RINGTONE
-            ),
+            # Whether it fits the player is only known with the player; see
+            # sound.effective_ringtone.
+            ringtone=str(options.get(CONF_RINGTONE) or DEFAULT_RINGTONE),
             volume=_parse_int(options.get(CONF_VOLUME), DEFAULT_VOLUME),
         )
 
