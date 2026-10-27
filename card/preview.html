@@ -424,6 +424,8 @@
         "mdi:chevron-up": "M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z",
         "mdi:chevron-down": "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
         "mdi:menu-down": "M7,10L12,15L17,10H7Z",
+        "mdi:information-outline":
+          "M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z",
         "mdi:alert-circle-outline":
           "M11,15H13V17H11V15M11,7H13V13H11V7M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20Z",
         "mdi:play-circle-outline":
@@ -1013,6 +1015,17 @@
         ringtone: "amzn_sfx_scifi_alarm_01",
         volume: 30,
       });
+      const FLAT_RAMP = addDevice({
+        id: "d-flatramp",
+        slug: "quiet",
+        name: "Quiet",
+        time: "06:00:00",
+        player: "media_player.echo_bedroom",
+        ringtone: "amzn_sfx_rooster_crow_01",
+        volume: 5,
+        volumeStart: 5,
+        ramp: 60,
+      });
       const RINGING = addDevice({
         id: "d-ring",
         slug: "late_shift",
@@ -1191,6 +1204,7 @@
             { label: "show_sound: false", tag: ALARM, config: base(MAIN, { show_sound: false }) },
             { label: "no speaker chosen", tag: ALARM, config: base(WEEKEND), note: "tone and volume only show with a speaker" },
             { label: "an Echo as speaker", tag: ALARM, config: base(ECHO_ALARM), note: "Amazon's sounds instead of the bundled tones" },
+            { label: "a ramp that cannot rise", tag: ALARM, config: base(FLAT_RAMP), note: "starts at the volume: the hint says it rings at the volume right away" },
             { label: "show_test_button: true", tag: ALARM, config: base(MAIN, { show_test_button: true }) },
             { label: "show_test_button while ringing", tag: ALARM, config: base(RINGING, { show_test_button: true }), note: "test is replaced by dismiss" },
             { label: "minute_step: 1", tag: ALARM, config: base(MAIN, { minute_step: 1 }) },

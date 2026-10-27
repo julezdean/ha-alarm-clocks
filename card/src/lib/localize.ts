@@ -40,6 +40,7 @@ const de: Resource = {
   "label.volume_unchanged": "wie eingestellt",
   "label.volume_start": "Ansteigend ab",
   "label.volume_ramp": "Anstieg",
+  "label.ramp_cannot_rise": "Kein Anstieg: „Ansteigend ab“ liegt nicht unter der Lautstärke.",
 
   "ringtone.classic": "Klassisch",
   "ringtone.digital": "Digital",
@@ -173,6 +174,7 @@ const en: Resource = {
   "label.volume_unchanged": "as set",
   "label.volume_start": "Rising from",
   "label.volume_ramp": "Rise over",
+  "label.ramp_cannot_rise": "No rise: “Rising from” is not below the volume.",
 
   "ringtone.classic": "Classic",
   "ringtone.digital": "Digital",

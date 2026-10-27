@@ -45,6 +45,11 @@ export interface SoundView {
   /** Where a rising volume starts, and how long it rises; absent with an older integration. */
   volumeStart?: SettingView;
   volumeRamp?: SettingView;
+  /**
+   * A ramp is set but cannot rise, because it starts at or above the volume.
+   * The integration then rings at the volume right away (see `ramp_seconds`).
+   */
+  rampCannotRise: boolean;
   /** True while a speaker is chosen, so that the tone and volume matter. */
   enabled: boolean;
 }
@@ -172,6 +177,13 @@ function buildSound(hass: HomeAssistant, entities: MacaEntityMap): SoundView | u
     },
     volumeStart: volumeStart && { ...volumeStart, unitKey: "unit.percent" },
     volumeRamp: volumeRamp && { ...volumeRamp, unitKey: "unit.seconds_short" },
+    rampCannotRise:
+      !!volume &&
+      !!volumeStart &&
+      !!volumeRamp &&
+      volume.value > 0 &&
+      volumeRamp.value > 0 &&
+      volumeStart.value >= volume.value,
     enabled: playerState!.state !== MEDIA_PLAYER_NONE,
   };
 }

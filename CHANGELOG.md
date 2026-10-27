@@ -34,7 +34,8 @@ media player, the default, nothing changes.
   hand.
 - The card shows speaker, ringtone and volume on an expanded alarm, under
   the new option `show_sound`, on by default; with a volume set, also where
-  it rises from and over how long.
+  it rises from and over how long, and a hint when the start is not below the
+  volume, so that the volume has nowhere to rise.
 
 ### Fixed
 

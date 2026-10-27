@@ -73,7 +73,7 @@ function addDeviceEntities(entities, states, id, slug, opts = {}) {
   add(`button.${slug}_snooze`, "snooze", "unknown");
   add(`button.${slug}_dismiss`, "dismiss", "unknown");
   add(`number.${slug}_volume`, "volume", String(opts.volume ?? 40), { min: 0, max: 100, step: 5 });
-  add(`number.${slug}_volume_start`, "volume_start", "10", { min: 0, max: 100, step: 5 });
+  add(`number.${slug}_volume_start`, "volume_start", String(opts.volumeStart ?? 10), { min: 0, max: 100, step: 5 });
   add(`number.${slug}_volume_ramp`, "volume_ramp", String(opts.ramp ?? 0), { min: 0, max: 600, step: 10 });
   add(`select.${slug}_media_player`, "media_player", opts.player ?? "none", {
     options: ["none", "media_player.schlafzimmer", "media_player.bad"],
@@ -888,6 +888,30 @@ for (const name of results) {
     assert.equal(deepQueryAll(hidden.shadowRoot, "select").length, 0);
   });
   hidden.remove();
+}
+
+// --- rising volume that cannot rise -------------------------------------------
+{
+  const cases = [
+    { label: "start at the volume", volume: 5, volumeStart: 5, ramp: 60, hint: true },
+    { label: "start above the volume", volume: 5, volumeStart: 10, ramp: 60, hint: true },
+    { label: "a real rise", volume: 70, volumeStart: 10, ramp: 60, hint: false },
+    { label: "no ramp set", volume: 5, volumeStart: 10, ramp: 0, hint: false },
+  ];
+  for (const { label, hint, ...opts } of cases) {
+    const { hass } = makeHass({
+      devices: [{ id: DEVICE, slug: "wecker_1", name: "Wecker 1", player: "media_player.bad", ...opts }],
+    });
+    const card = await mount(
+      { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+      hass,
+    );
+    check(`ramp hint: ${label} ${hint ? "shows" : "does not show"} it`, () => {
+      const text = visibleText(card);
+      (hint ? assert.match : assert.doesNotMatch)(text, /Kein Anstieg/);
+    });
+    card.remove();
+  }
 }
 
 console.log(`\n${results.length} checks passed`);

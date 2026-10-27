@@ -395,6 +395,13 @@ export class MacaAlarmItem extends LitElement {
               setting ? this._renderSoundSetting(setting) : nothing,
             )
           : nothing}
+        ${sound.enabled && sound.rampCannotRise
+          ? html`<p class="hint">
+              <ha-icon icon="mdi:information-outline" aria-hidden="true"></ha-icon>${localize(
+                "label.ramp_cannot_rise",
+              )}
+            </p>`
+          : nothing}
       </div>
     `;
   }
@@ -835,6 +842,22 @@ export class MacaAlarmItem extends LitElement {
         gap: 2px;
         border-top: 1px solid var(--divider-color);
         padding-top: 6px;
+      }
+
+      .hint {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        margin: 2px 0 4px;
+        color: var(--secondary-text-color);
+        font-size: 0.82rem;
+        line-height: 1.35;
+      }
+
+      .hint ha-icon {
+        flex: 0 0 auto;
+        --mdc-icon-size: 16px;
+        margin-top: 1px;
       }
 
       .field {
