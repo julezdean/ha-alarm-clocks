@@ -30,6 +30,13 @@ media player, the default, nothing changes.
 - The card shows speaker, ringtone and volume on an expanded alarm, under
   the new option `show_sound`, on by default.
 
+### Fixed
+
+- Home Assistant warned that the integration looks up its device in a way it
+  deprecated and stops supporting in 2027.8. The alarm clock now finds its
+  device among those of its own config entry, which works on every supported
+  version.
+
 ## [3.0.0] - 2026-09-28
 
 Every phase of a wake-up now has a sequence of actions instead of a single

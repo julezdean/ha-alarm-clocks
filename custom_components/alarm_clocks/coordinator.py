@@ -281,10 +281,23 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
 
     @property
     def device_id(self) -> str | None:
-        """Device ID of the alarm clock (used in event payloads)."""
+        """Device ID of the alarm clock (used in event payloads).
+
+        Looked up among this entry's own devices: an identifier alone no
+        longer names a device uniquely across config entries, which is why
+        Home Assistant deprecated looking one up by it.
+        """
         if self._device_id is None:
-            device = dr.async_get(self.hass).async_get_device(
-                identifiers={(DOMAIN, self.config_entry.entry_id)}
+            identifier = (DOMAIN, self.config_entry.entry_id)
+            device = next(
+                (
+                    device
+                    for device in dr.async_entries_for_config_entry(
+                        dr.async_get(self.hass), self.config_entry.entry_id
+                    )
+                    if identifier in device.identifiers
+                ),
+                None,
             )
             self._device_id = device.id if device else None
         return self._device_id
