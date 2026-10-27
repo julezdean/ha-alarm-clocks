@@ -136,7 +136,7 @@ function buildSound(hass: HomeAssistant, entities: MacaEntityMap): SoundView | u
   const options = Array.isArray(playerState!.attributes.options)
     ? (playerState!.attributes.options as string[])
     : [];
-  const players = options.map((value) =>
+  const named = options.map((value) =>
     value === MEDIA_PLAYER_NONE
       ? { value, label: "label.no_sound", labelIsKey: true }
       : {
@@ -145,6 +145,7 @@ function buildSound(hass: HomeAssistant, entities: MacaEntityMap): SoundView | u
           labelIsKey: false,
         },
   );
+  const players = disambiguate(hass, named);
   // Speakers by name, "no sound" first.
   players.sort((a, b) =>
     a.labelIsKey === b.labelIsKey ? a.label.localeCompare(b.label) : a.labelIsKey ? -1 : 1,
@@ -186,6 +187,52 @@ function buildSound(hass: HomeAssistant, entities: MacaEntityMap): SoundView | u
       volumeStart.value >= volume.value,
     enabled: playerState!.state !== MEDIA_PLAYER_NONE,
   };
+}
+
+/**
+ * Names of integrations that commonly bring media players, for when the
+ * frontend has not loaded their own title. Anything else shows its domain.
+ */
+const INTEGRATION_NAMES: Record<string, string> = {
+  alexa_devices: "Alexa Devices",
+  alexa_media: "Alexa Media Player",
+  cast: "Google Cast",
+  music_assistant: "Music Assistant",
+  sonos: "Sonos",
+  spotify: "Spotify",
+};
+
+function integrationName(hass: HomeAssistant, domain: string): string {
+  const key = `component.${domain}.title`;
+  const title = hass.localize?.(key);
+  return (title && title !== key ? title : undefined) ?? INTEGRATION_NAMES[domain] ?? domain;
+}
+
+/**
+ * Tell apart players that share a name. The same speaker often shows up once
+ * per integration that reaches it, in the same area, so it is the integration
+ * that tells them apart; two players of one integration under one name are
+ * told apart by their entity ID as a last resort.
+ */
+function disambiguate(hass: HomeAssistant, players: SoundOption[]): SoundOption[] {
+  const named = (options: SoundOption[], label: (option: SoundOption) => string) => {
+    const count = new Map<string, number>();
+    for (const option of options) {
+      if (!option.labelIsKey) {
+        count.set(option.label, (count.get(option.label) ?? 0) + 1);
+      }
+    }
+    return options.map((option) =>
+      !option.labelIsKey && (count.get(option.label) ?? 0) > 1
+        ? { ...option, label: label(option) }
+        : option,
+    );
+  };
+  const byIntegration = named(players, (option) => {
+    const platform = hass.entities?.[option.value]?.platform;
+    return platform ? `${option.label} · ${integrationName(hass, platform)}` : option.label;
+  });
+  return named(byIntegration, (option) => `${option.label} · ${option.value}`);
 }
 
 /**

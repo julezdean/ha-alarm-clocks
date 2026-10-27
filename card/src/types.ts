@@ -61,6 +61,8 @@ export interface HomeAssistant {
   devices: Record<string, DeviceRegistryDisplayEntry>;
   locale: FrontendLocaleData;
   language?: string;
+  /** The frontend's translations; returns an empty string for a key it has not loaded. */
+  localize?: (key: string) => string;
   themes?: unknown;
   callService(
     domain: string,

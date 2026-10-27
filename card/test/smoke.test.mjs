@@ -890,6 +890,63 @@ for (const name of results) {
   hidden.remove();
 }
 
+// --- speakers that share a name ------------------------------------------------
+{
+  const players = {
+    "media_player.echo_dot_kuche": ["Echo Dot Küche", "alexa_media"],
+    "media_player.kuche_echo_dot_kuche": ["Echo Dot Küche", "alexa_devices"],
+    "media_player.cast_a": ["Kitchen", "cast"],
+    "media_player.cast_b": ["Kitchen", "cast"],
+    "media_player.wohnzimmer": ["Wohnzimmer", "cast"],
+  };
+  const build = (localize) => {
+    const { hass } = makeHass();
+    const states = { ...hass.states };
+    const entities = { ...hass.entities };
+    for (const [entityId, [name, platform]] of Object.entries(players)) {
+      states[entityId] = { entity_id: entityId, state: "idle", attributes: { friendly_name: name } };
+      entities[entityId] = { entity_id: entityId, platform };
+    }
+    states["select.wecker_1_media_player"] = {
+      ...states["select.wecker_1_media_player"],
+      attributes: { options: ["none", ...Object.keys(players)] },
+    };
+    return { ...hass, states, entities, ...(localize ? { localize } : {}) };
+  };
+  const labelsOf = async (hass) => {
+    const card = await mount(
+      { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+      hass,
+    );
+    const [select] = deepQueryAll(card.shadowRoot, "select");
+    const labels = [...select.options].map((option) => option.textContent.trim());
+    card.remove();
+    return labels;
+  };
+
+  const plain = await labelsOf(build());
+  check("speakers: a shared name gets its integration, a unique one stays as it is", () => {
+    assert.ok(plain.includes("Echo Dot Küche · Alexa Media Player"));
+    assert.ok(plain.includes("Echo Dot Küche · Alexa Devices"));
+    assert.ok(plain.includes("Wohnzimmer"));
+    assert.ok(!plain.includes("Echo Dot Küche"));
+  });
+  check("speakers: one name in one integration falls back to the entity ID", () => {
+    assert.ok(plain.includes("Kitchen · Google Cast · media_player.cast_a"));
+    assert.ok(plain.includes("Kitchen · Google Cast · media_player.cast_b"));
+  });
+
+  // The frontend's own title wins over the built-in list; an unknown key
+  // comes back empty, as in Home Assistant.
+  const titled = await labelsOf(
+    build((key) => (key === "component.alexa_devices.title" ? "Amazon Alexa (Kern)" : "")),
+  );
+  check("speakers: the integration's title comes from the frontend when it has one", () => {
+    assert.ok(titled.includes("Echo Dot Küche · Amazon Alexa (Kern)"));
+    assert.ok(titled.includes("Echo Dot Küche · Alexa Media Player"));
+  });
+}
+
 // --- rising volume that cannot rise -------------------------------------------
 {
   const cases = [

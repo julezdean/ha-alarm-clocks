@@ -679,19 +679,22 @@
 
       /**
        * The media players the integration's select offers, mirrored from
-       * select.py: "none" first, then every media player. Only their names
-       * matter to the card, so they are states without registry entries.
+       * select.py: "none" first, then every media player. The card reads
+       * their names from the states and their integration from the registry;
+       * the Echo is there twice under one name, once per Alexa integration,
+       * the way it shows up in a real instance.
        */
       const MEDIA_PLAYERS = {
-        "media_player.bedroom": "Bedroom speaker",
-        "media_player.kitchen": "Kitchen",
-        "media_player.living_room": "Living room",
-        "media_player.echo_bedroom": "Echo Dot bedroom",
+        "media_player.bedroom": ["Bedroom speaker", "cast"],
+        "media_player.kitchen": ["Kitchen", "cast"],
+        "media_player.living_room": ["Living room", "sonos"],
+        "media_player.echo_bedroom": ["Echo Dot bedroom", "alexa_media"],
+        "media_player.bedroom_echo_dot_bedroom": ["Echo Dot bedroom", "alexa_devices"],
       };
       const PLAYER_OPTIONS = ["none", ...Object.keys(MEDIA_PLAYERS)];
       const RINGTONES = ["classic", "digital", "chime", "gentle"];
       /** An Echo plays Amazon's sounds instead, mirrored from ALEXA_SOUNDS in const.py. */
-      const ECHOES = new Set(["media_player.echo_bedroom"]);
+      const ECHOES = new Set(["media_player.echo_bedroom", "media_player.bedroom_echo_dot_bedroom"]);
       const ALEXA_SOUNDS = ["air_horn_03", "amzn_sfx_cat_meow_1x_01", "amzn_sfx_church_bell_1x_02", "amzn_sfx_crowd_applause_01", "amzn_sfx_dog_med_bark_1x_02", "amzn_sfx_doorbell_01", "amzn_sfx_doorbell_chime_01", "amzn_sfx_doorbell_chime_02", "amzn_sfx_large_crowd_cheer_01", "amzn_sfx_lion_roar_02", "amzn_sfx_rooster_crow_01", "amzn_sfx_scifi_alarm_01", "amzn_sfx_scifi_alarm_04", "amzn_sfx_scifi_engines_on_02", "amzn_sfx_scifi_sheilds_up_01", "amzn_sfx_trumpet_bugle_04", "amzn_sfx_wolf_howl_02", "bell_02", "boing_01", "boing_03", "buzzers_pistols_01", "camera_01", "christmas_05", "clock_01", "futuristic_10", "halloween_bats", "halloween_crows", "halloween_footsteps", "halloween_wind", "halloween_wolf", "holiday_halloween_ghost", "horror_10", "med_system_alerts_minimal_dragon_short", "med_system_alerts_minimal_owl_short", "med_system_alerts_minimals_blue_wave_small", "med_system_alerts_minimals_galaxy_short", "med_system_alerts_minimals_panda_short", "med_system_alerts_minimals_tiger_short", "med_ui_success_generic_1-1", "squeaky_12", "zap_01"];
       const ringtonesFor = (player) => (ECHOES.has(player) ? ALEXA_SOUNDS : RINGTONES);
 
@@ -706,7 +709,8 @@
 
       const isoNow = () => new Date(NOW()).toISOString();
 
-      for (const [entityId, name] of Object.entries(MEDIA_PLAYERS)) {
+      for (const [entityId, [name, platform]] of Object.entries(MEDIA_PLAYERS)) {
+        store.entities[entityId] = { entity_id: entityId, platform };
         store.states[entityId] = {
           entity_id: entityId,
           state: "idle",

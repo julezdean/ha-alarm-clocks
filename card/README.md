@@ -36,6 +36,8 @@ the card from source.
 - **Alarm sound** on an expanded alarm: the speaker, the ringtone and the
   volume, as plain dropdowns and a stepper. Without a speaker only the
   speaker shows; with an Echo the ringtones are Amazon's sounds, by name.
+  Speakers that share a name carry their integration, such as "Echo Dot ·
+  Alexa Devices" next to "Echo Dot · Alexa Media Player".
 - **Settings row** for snooze duration, pre offset, post offset and auto
   dismiss, with the limits taken straight from the number entities.
 - **Robust:** an alarm clock with missing, disabled or unavailable entities is
