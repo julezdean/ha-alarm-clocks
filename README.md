@@ -98,6 +98,14 @@ ends, it starts over.
 previous volume back when the sound stops, also after Home Assistant was
 restarted while ringing. At zero, the default, the volume is left as it is.
 
+The volume can also rise: `number.<a>_volume_start` is where it starts and
+`number.<a>_volume_ramp` how many seconds it takes to reach `volume`, for
+example from 10 % to 70 % over 60 seconds. It takes a step every ten
+seconds, and starts over from the bottom whenever the alarm rings again
+after a snooze. A ramp never lasts longer than the auto dismiss, and with a
+volume of zero there is nothing to rise to. Turn the speaker up or down
+yourself while it rises and the ramp stops there, rather than overrule you.
+
 Four tones ship with the integration: Classic, Digital, Chime and Gentle.
 Home Assistant serves them itself, at `/alarm_clocks/sounds/<tone>.wav`, so
 the media player has to reach Home Assistant under the URL set in
@@ -184,6 +192,8 @@ For an alarm clock named `Alarm 1`:
 | `select.alarm_1_media_player` | Media player the alarm sound plays on (`none` = no sound) |
 | `select.alarm_1_ringtone` | Ringtone: `classic`, `digital`, `chime`, `gentle`; for an Echo one of Amazon's sounds |
 | `number.alarm_1_volume` | Volume while ringing in percent (0–100, 0 = leave the player's volume alone) |
+| `number.alarm_1_volume_start` | Volume a rising alarm starts at, in percent (0–100) |
+| `number.alarm_1_volume_ramp` | Seconds the volume takes to rise to `volume` (0 = no ramp; at most the auto dismiss) |
 | `binary_sensor.alarm_1_ringing` | The alarm is currently ringing (read-only) |
 | `sensor.alarm_1_next_alarm` | Next alarm time; the end of a snooze takes precedence |
 | `sensor.alarm_1_state` | `disabled`, `armed`, `pre_active`, `ringing`, `snoozed`, `post_pending`, `post_active` |
@@ -322,6 +332,9 @@ actions:
   integration it is treated as an ordinary player and stays silent.
 - A new media player, ringtone or volume applies from the next time the
   alarm rings, not to one that is ringing.
+- A rising volume moves in steps of ten seconds, not smoothly. Whether a step
+  lands as set depends on the player: an Echo, for one, may round it to its
+  own volume levels.
 - The media player is stored by its entity ID. After renaming that, choose
   it again.
 - The integration ships its own icon, which Home Assistant only reads from

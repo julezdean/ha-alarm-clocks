@@ -127,6 +127,12 @@
       },
       "volume": {
         "name": "Lautstärke"
+      },
+      "volume_start": {
+        "name": "Startlautstärke"
+      },
+      "volume_ramp": {
+        "name": "Lautstärke-Anstieg"
       }
     },
     "select": {

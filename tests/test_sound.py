@@ -19,9 +19,12 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from custom_components.alarm_clocks.const import (
     ALEXA_SOUNDS,
+    CONF_AUTO_DISMISS,
     CONF_MEDIA_PLAYER,
     CONF_RINGTONE,
     CONF_VOLUME,
+    CONF_VOLUME_RAMP,
+    CONF_VOLUME_START,
     DEFAULT_ALEXA_SOUND,
 )
 
@@ -497,3 +500,177 @@ async def test_unfitting_stored_ringtone_falls_back(
     await coordinator.async_trigger_alarm()
     await hass.async_block_till_done()
     assert ("send_sound", (device_id, DEFAULT_ALEXA_SOUND)) in _echo_summary(calls)
+
+
+# ---------------------------------------------------------------------------
+# Rising volume
+# ---------------------------------------------------------------------------
+
+
+def _volumes(calls: list[Any]) -> list[float]:
+    """The volume levels set, in order."""
+    return [
+        call["service_data"]["volume_level"]
+        for call in calls
+        if call["service"] == "volume_set"
+    ]
+
+
+def _player_follows_volume(hass: HomeAssistant) -> None:
+    """Let the player report the volume it was set to, as a real one does.
+
+    Without it every step would look like a change by hand.
+    """
+
+    @callback
+    def _set(call: ServiceCall) -> None:
+        state = hass.states.get(PLAYER)
+        hass.states.async_set(
+            PLAYER,
+            state.state,
+            {**state.attributes, "volume_level": call.data["volume_level"]},
+        )
+
+    hass.services.async_register("media_player", "volume_set", _set)
+
+
+async def _ramp(coordinator, **values: int) -> None:
+    await coordinator.async_set_options(
+        **{CONF_VOLUME: 70, CONF_VOLUME_START: 10, CONF_VOLUME_RAMP: 60, **values}
+    )
+
+
+async def test_volume_rises_to_its_end(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    calls: list[Any],
+    setup_alarm: MockConfigEntry,
+) -> None:
+    """10 % to 70 % over a minute, a step every 10 s, then it holds."""
+    _player_follows_volume(hass)
+    coordinator = setup_alarm.runtime_data
+    await _ramp(coordinator)
+
+    await coordinator.async_trigger_alarm()
+    await hass.async_block_till_done()
+    for _ in range(8):
+        await _advance(hass, freezer, seconds=10)
+
+    assert _volumes(calls) == [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+
+    calls.clear()
+    await coordinator.async_dismiss()
+    await hass.async_block_till_done()
+    # The player's own volume from before the alarm.
+    assert _volumes(calls) == [0.3]
+
+
+async def test_ramp_stops_at_a_volume_changed_by_hand(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    calls: list[Any],
+    setup_alarm: MockConfigEntry,
+) -> None:
+    """Someone turns it down: the ramp leaves it there."""
+    _player_follows_volume(hass)
+    coordinator = setup_alarm.runtime_data
+    await _ramp(coordinator)
+    await coordinator.async_trigger_alarm()
+    await _advance(hass, freezer, seconds=10)
+    assert _volumes(calls) == [0.1, 0.2]
+
+    hass.states.async_set(PLAYER, "idle", {"volume_level": 0.05})
+    await hass.async_block_till_done()
+    for _ in range(6):
+        await _advance(hass, freezer, seconds=10)
+
+    assert _volumes(calls) == [0.1, 0.2]
+    assert coordinator.runtime.ringing
+
+
+async def test_ramp_starts_over_after_a_snooze(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    calls: list[Any],
+    setup_alarm: MockConfigEntry,
+) -> None:
+    """When the snooze ends, the volume rises from the start again."""
+    _player_follows_volume(hass)
+    coordinator = setup_alarm.runtime_data
+    await _ramp(coordinator)
+    await coordinator.async_trigger_alarm()
+    for _ in range(3):
+        await _advance(hass, freezer, seconds=10)
+    await coordinator.async_snooze()
+    calls.clear()
+
+    await _advance(hass, freezer, minutes=9, seconds=1)
+    await _advance(hass, freezer, seconds=10)
+
+    assert _volumes(calls) == [0.1, 0.2]
+
+
+async def test_ramp_never_outlasts_the_auto_dismiss(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    calls: list[Any],
+    setup_alarm: MockConfigEntry,
+) -> None:
+    """A ten-minute ramp with a one-minute auto dismiss reaches its end in one."""
+    _player_follows_volume(hass)
+    coordinator = setup_alarm.runtime_data
+    ramp = "number.alarm_1_volume_ramp"
+    assert hass.states.get(ramp).attributes["max"] == 600  # 10 min auto dismiss
+
+    await coordinator.async_set_options(**{CONF_AUTO_DISMISS: 1})
+    await hass.async_block_till_done()
+    assert hass.states.get(ramp).attributes["max"] == 60
+
+    await _ramp(coordinator, **{CONF_VOLUME_RAMP: 600})
+    assert coordinator.config.ramp_seconds == 60
+    await coordinator.async_trigger_alarm()
+    for _ in range(3):
+        await _advance(hass, freezer, seconds=10)
+
+    # Half way through the shortened ramp: 10 + (70 - 10) * 30 / 60.
+    assert _volumes(calls)[-1] == 0.4
+
+
+async def test_restart_resumes_the_ramp_where_it_was(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    calls: list[Any],
+    setup_alarm: MockConfigEntry,
+) -> None:
+    """Restarted half way, the volume carries on from half way, not from 10 %."""
+    _player_follows_volume(hass)
+    coordinator = setup_alarm.runtime_data
+    await _ramp(coordinator)
+    await coordinator.async_trigger_alarm()
+    for _ in range(3):
+        await _advance(hass, freezer, seconds=10)
+
+    assert await hass.config_entries.async_reload(setup_alarm.entry_id)
+    await hass.async_block_till_done()
+    assert setup_alarm.runtime_data.runtime.ringing
+    calls.clear()
+    await _advance(hass, freezer, seconds=10)
+
+    assert _volumes(calls) == [0.5]
+    calls.clear()
+    await setup_alarm.runtime_data.async_dismiss()
+    await hass.async_block_till_done()
+    # Still the volume from before the alarm, not the ramp's.
+    assert _volumes(calls) == [0.3]
+
+
+async def test_no_ramp_without_a_volume_to_rise_to(
+    hass: HomeAssistant, calls: list[Any], setup_alarm: MockConfigEntry
+) -> None:
+    """Volume zero leaves the player alone, ramp or not."""
+    coordinator = setup_alarm.runtime_data
+    await _ramp(coordinator, **{CONF_VOLUME: 0})
+    assert coordinator.config.ramp_seconds == 0
+    await coordinator.async_trigger_alarm()
+    await hass.async_block_till_done()
+    assert _volumes(calls) == []

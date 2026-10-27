@@ -27,8 +27,14 @@ media player, the default, nothing changes.
 - `number.<a>_volume`, the volume the player rings at. The previous volume is
   restored when the sound stops, also after a restart while ringing. Zero,
   the default, leaves the volume alone.
+- A rising volume. `number.<a>_volume_start` sets where it starts and
+  `number.<a>_volume_ramp` how many seconds it takes to reach the volume,
+  one step every ten seconds. It starts over after every snooze, never
+  outlasts the auto dismiss, and stops where someone turned the speaker by
+  hand.
 - The card shows speaker, ringtone and volume on an expanded alarm, under
-  the new option `show_sound`, on by default.
+  the new option `show_sound`, on by default; with a volume set, also where
+  it rises from and over how long.
 
 ### Fixed
 

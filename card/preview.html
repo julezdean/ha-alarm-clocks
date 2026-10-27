@@ -649,6 +649,8 @@
         postOffset: ["number", "post_offset"],
         autoDismiss: ["number", "auto_dismiss"],
         volume: ["number", "volume"],
+        volumeStart: ["number", "volume_start"],
+        volumeRamp: ["number", "volume_ramp"],
         mediaPlayer: ["select", "media_player"],
         ringtone: ["select", "ringtone"],
         ringing: ["binary_sensor", "ringing"],
@@ -668,6 +670,9 @@
         postOffset: { min: 0, max: 120, step: 1, unit_of_measurement: "min" },
         autoDismiss: { min: 0, max: 180, step: 5, unit_of_measurement: "min" },
         volume: { min: 0, max: 100, step: 5, unit_of_measurement: "%" },
+        volumeStart: { min: 0, max: 100, step: 5, unit_of_measurement: "%" },
+        // The integration caps it at the auto dismiss; 30 min is the default one's.
+        volumeRamp: { min: 0, max: 1800, step: 10, unit_of_measurement: "s" },
       };
 
       /**
@@ -824,6 +829,8 @@
         add("postOffset", spec.post ?? 20, NUMBER_ATTRS.postOffset);
         add("autoDismiss", spec.auto ?? 30, NUMBER_ATTRS.autoDismiss);
         add("volume", spec.volume ?? 0, NUMBER_ATTRS.volume);
+        add("volumeStart", spec.volumeStart ?? 10, NUMBER_ATTRS.volumeStart);
+        add("volumeRamp", spec.ramp ?? 0, NUMBER_ATTRS.volumeRamp);
         add("mediaPlayer", spec.player ?? "none", { options: PLAYER_OPTIONS });
         add("ringtone", spec.ringtone ?? "classic", { options: ringtonesFor(spec.player) });
         add("ringing", spec.status === "ringing" ? "on" : "off");
@@ -1016,6 +1023,7 @@
         player: "media_player.bedroom",
         ringtone: "chime",
         volume: 40,
+        ramp: 60,
       });
       const SNOOZED = addDevice({
         id: "d-snooze",

@@ -44,6 +44,9 @@ CONF_POST_TIMEOUT: Final = "post_timeout"
 CONF_MEDIA_PLAYER: Final = "media_player"
 CONF_RINGTONE: Final = "ringtone"
 CONF_VOLUME: Final = "volume"
+# A rising volume: from volume_start to volume over volume_ramp seconds.
+CONF_VOLUME_START: Final = "volume_start"
+CONF_VOLUME_RAMP: Final = "volume_ramp"
 
 PHASE_PRE: Final = "pre"
 PHASE_ALARM: Final = "alarm"
@@ -83,6 +86,9 @@ DEFAULT_POST_TIMEOUT: Final = 60
 DEFAULT_RINGTONE: Final = "classic"
 # Zero leaves the volume of the media player as it is.
 DEFAULT_VOLUME: Final = 0
+DEFAULT_VOLUME_START: Final = 10
+# Zero means no ramp: the alarm rings at its volume right away.
+DEFAULT_VOLUME_RAMP: Final = 0
 
 MIN_SNOOZE_DURATION: Final = 0
 MAX_SNOOZE_DURATION: Final = 30
@@ -95,6 +101,10 @@ MAX_POST_TIMEOUT: Final = 240
 MIN_VOLUME: Final = 0
 MAX_VOLUME: Final = 100
 VOLUME_STEP: Final = 5
+MIN_VOLUME_RAMP: Final = 0
+# The ramp never outlasts the automatic dismiss; without one, half an hour.
+MAX_VOLUME_RAMP: Final = 1800
+VOLUME_RAMP_STEP: Final = 10
 
 # Bundled ringtones, one WAV file each in sounds/ (see scripts/make_ringtones.py).
 RINGTONES: Final = ("classic", "digital", "chime", "gentle")
@@ -152,6 +162,9 @@ PLATFORM_ALEXA_MEDIA: Final = "alexa_media"
 # on a clock instead of when it has finished. Every repetition goes through
 # Amazon's cloud, which is why this is not shorter.
 ALEXA_REPEAT: Final = timedelta(seconds=5)
+# How often a rising volume takes its next step. Every step is a volume_set,
+# on an Echo through Amazon's cloud like the repeated sound.
+VOLUME_RAMP_INTERVAL: Final = timedelta(seconds=10)
 # Option of the media player select that means no sound at all.
 MEDIA_PLAYER_NONE: Final = "none"
 

@@ -22,6 +22,8 @@ from .const import (
     CONF_RINGTONE,
     CONF_SNOOZE_DURATION,
     CONF_VOLUME,
+    CONF_VOLUME_RAMP,
+    CONF_VOLUME_START,
     DEFAULT_ALARM_TIME,
     DEFAULT_AUTO_DISMISS,
     DEFAULT_POST_OFFSET,
@@ -30,6 +32,8 @@ from .const import (
     DEFAULT_RINGTONE,
     DEFAULT_SNOOZE_DURATION,
     DEFAULT_VOLUME,
+    DEFAULT_VOLUME_RAMP,
+    DEFAULT_VOLUME_START,
 )
 
 
@@ -101,6 +105,19 @@ class AlarmClockConfig:
     ringtone: str = DEFAULT_RINGTONE
     # Volume in percent while ringing; zero leaves the player's volume alone.
     volume: int = DEFAULT_VOLUME
+    # A rising volume: from volume_start to volume over volume_ramp seconds.
+    # Zero seconds, or no volume to rise to, means no ramp.
+    volume_start: int = DEFAULT_VOLUME_START
+    volume_ramp: int = DEFAULT_VOLUME_RAMP
+
+    @property
+    def ramp_seconds(self) -> int:
+        """How long the volume rises; never longer than until the auto dismiss."""
+        if self.volume <= 0 or self.volume_start >= self.volume:
+            return 0
+        if self.auto_dismiss > 0:
+            return max(0, min(self.volume_ramp, self.auto_dismiss * 60))
+        return max(0, self.volume_ramp)
 
     @property
     def is_one_shot(self) -> bool:
@@ -134,6 +151,10 @@ class AlarmClockConfig:
             # sound.effective_ringtone.
             ringtone=str(options.get(CONF_RINGTONE) or DEFAULT_RINGTONE),
             volume=_parse_int(options.get(CONF_VOLUME), DEFAULT_VOLUME),
+            volume_start=_parse_int(
+                options.get(CONF_VOLUME_START), DEFAULT_VOLUME_START
+            ),
+            volume_ramp=_parse_int(options.get(CONF_VOLUME_RAMP), DEFAULT_VOLUME_RAMP),
         )
 
 

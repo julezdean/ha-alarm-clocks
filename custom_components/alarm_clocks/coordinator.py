@@ -777,7 +777,12 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         if player is None:
             return
         previous = await self._sound.async_start(
-            player, self.config.ringtone, self.config.volume
+            player,
+            self.config.ringtone,
+            self.config.volume,
+            ramp_from=self.config.volume_start,
+            ramp_seconds=self.config.ramp_seconds,
+            started=self.runtime.ringing_since,
         )
         if self.runtime.sound_restore_volume is None and previous is not None:
             self.runtime.sound_restore_volume = previous

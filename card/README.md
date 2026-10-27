@@ -3,7 +3,7 @@
 Source of the Lovelace card that ships with the **Alarm Clocks & Wake-up Routines**
 integration.
 
-An alarm clock consists of 23 entities, seven of them individual weekday
+An alarm clock consists of 25 entities, seven of them individual weekday
 switches. In a standard entities card that turns into a long, unreadable list.
 This card condenses it into one view that is still operable at six in the
 morning.
@@ -77,7 +77,7 @@ for adding an alarm only offers the ones not yet in the card.
 | `show_next_alarm` | boolean | `true` | Show the remaining time and the next alarm time. |
 | `show_settings` | boolean | `true` | Show the settings row on an expanded alarm. |
 | `show_test_button` | boolean | `false` | Show a button for `alarm_clocks.trigger_alarm`. |
-| `show_sound` | boolean | `true` | Show the alarm sound on an expanded alarm: speaker, and with one chosen, ringtone and volume. |
+| `show_sound` | boolean | `true` | Show the alarm sound on an expanded alarm: speaker, and with one chosen, ringtone and volume; with a volume set, also where it rises from and over how long. |
 | `minute_step` | number | `5` | Step width of the minutes on the time stepper. |
 | `expandable` | boolean | `true` | Whether a row can be expanded and collapsed by clicking it. |
 | `accordion` | boolean | `true` | Card only, not per alarm. On: opening a row closes the others. Off: every row opens and closes on its own. |
@@ -341,7 +341,7 @@ times stable:
 ```bash
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --headless=new --hide-scrollbars --force-device-scale-factor=2 \
-  --window-size=938,1011 --screenshot=images/screenshot-cards.png \
+  --window-size=938,1103 --screenshot=images/screenshot-cards.png \
   "http://localhost:8099/card/preview.html?section=showcase&theme=dark&labels=off&gallery=437&lang=en&now=2026-01-05T21:40:00"
 ```
 

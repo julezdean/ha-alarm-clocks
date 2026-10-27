@@ -38,6 +38,8 @@ const de: Resource = {
   "label.volume": "Lautstärke",
   "label.no_sound": "Kein Ton",
   "label.volume_unchanged": "wie eingestellt",
+  "label.volume_start": "Ansteigend ab",
+  "label.volume_ramp": "Anstieg",
 
   "ringtone.classic": "Klassisch",
   "ringtone.digital": "Digital",
@@ -99,6 +101,7 @@ const de: Resource = {
   "unit.minute": "Min.",
   "unit.minutes_short": "min",
   "unit.percent": "%",
+  "unit.seconds_short": "s",
 
   "error.unavailable": "Der Wecker ist derzeit nicht verfügbar.",
   "error.no_alarms": "Keine Wecker gefunden.",
@@ -168,6 +171,8 @@ const en: Resource = {
   "label.volume": "Volume",
   "label.no_sound": "No sound",
   "label.volume_unchanged": "as set",
+  "label.volume_start": "Rising from",
+  "label.volume_ramp": "Rise over",
 
   "ringtone.classic": "Classic",
   "ringtone.digital": "Digital",
@@ -229,6 +234,7 @@ const en: Resource = {
   "unit.minute": "min",
   "unit.minutes_short": "min",
   "unit.percent": "%",
+  "unit.seconds_short": "s",
 
   "error.unavailable": "This alarm is currently unavailable.",
   "error.no_alarms": "No alarm clocks found.",

@@ -73,6 +73,8 @@ function addDeviceEntities(entities, states, id, slug, opts = {}) {
   add(`button.${slug}_snooze`, "snooze", "unknown");
   add(`button.${slug}_dismiss`, "dismiss", "unknown");
   add(`number.${slug}_volume`, "volume", String(opts.volume ?? 40), { min: 0, max: 100, step: 5 });
+  add(`number.${slug}_volume_start`, "volume_start", "10", { min: 0, max: 100, step: 5 });
+  add(`number.${slug}_volume_ramp`, "volume_ramp", String(opts.ramp ?? 0), { min: 0, max: 600, step: 10 });
   add(`select.${slug}_media_player`, "media_player", opts.player ?? "none", {
     options: ["none", "media_player.schlafzimmer", "media_player.bad"],
   });
@@ -810,6 +812,11 @@ for (const name of results) {
     );
     assert.match(visibleText(card), /Lautstärke 40 %/);
   });
+  check("sound: with a volume, where it rises from and how long show", () => {
+    const text = visibleText(card);
+    assert.match(text, /Ansteigend ab 10 %/);
+    assert.match(text, /Anstieg aus/);
+  });
   check("sound: picking a tone calls select.select_option", () => {
     ringtone.value = "gentle";
     ringtone.dispatchEvent(new window.Event("change", { bubbles: true }));
@@ -861,6 +868,11 @@ for (const name of results) {
   );
   check("sound: volume zero reads as the player's own", () => {
     assert.match(visibleText(card), /Lautstärke wie eingestellt/);
+  });
+  check("sound: without a volume there is nothing to rise to", () => {
+    const text = visibleText(card);
+    assert.doesNotMatch(text, /Ansteigend ab/);
+    assert.doesNotMatch(text, /Anstieg/);
   });
   card.remove();
 

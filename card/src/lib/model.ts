@@ -42,6 +42,9 @@ export interface SoundView {
   ringtone?: string;
   ringtones: SoundOption[];
   volume?: SettingView;
+  /** Where a rising volume starts, and how long it rises; absent with an older integration. */
+  volumeStart?: SettingView;
+  volumeRamp?: SettingView;
   /** True while a speaker is chosen, so that the tone and volume matter. */
   enabled: boolean;
 }
@@ -153,6 +156,8 @@ function buildSound(hass: HomeAssistant, entities: MacaEntityMap): SoundView | u
       : [];
 
   const volume = buildSetting(hass, entities, "volume", "label.volume", true);
+  const volumeStart = buildSetting(hass, entities, "volumeStart", "label.volume_start", false);
+  const volumeRamp = buildSetting(hass, entities, "volumeRamp", "label.volume_ramp", true);
   return {
     mediaPlayerEntity,
     player: playerState!.state,
@@ -165,6 +170,8 @@ function buildSound(hass: HomeAssistant, entities: MacaEntityMap): SoundView | u
       unitKey: "unit.percent",
       zeroLabelKey: "label.volume_unchanged",
     },
+    volumeStart: volumeStart && { ...volumeStart, unitKey: "unit.percent" },
+    volumeRamp: volumeRamp && { ...volumeRamp, unitKey: "unit.seconds_short" },
     enabled: playerState!.state !== MEDIA_PLAYER_NONE,
   };
 }

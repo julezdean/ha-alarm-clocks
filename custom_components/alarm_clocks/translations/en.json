@@ -127,6 +127,12 @@
       },
       "volume": {
         "name": "Volume"
+      },
+      "volume_start": {
+        "name": "Start volume"
+      },
+      "volume_ramp": {
+        "name": "Volume ramp"
       }
     },
     "select": {

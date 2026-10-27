@@ -16,6 +16,12 @@ player:
   Player). An Echo reports no state while it does, so the sound is repeated
   on a clock.
 
+With a ramp the volume rises from a start to the chosen volume over a
+number of seconds, one step every VOLUME_RAMP_INTERVAL. Where it stands
+follows from when the ringing began, so a restart in the middle of a ramp
+carries on from there. A player whose volume someone changed in between keeps
+it: the ramp stops rather than overrule them.
+
 This runs beside the action sequences, not through them: they are the
 user's, and the sound is not one of their steps.
 """
@@ -54,6 +60,7 @@ from homeassistant.helpers.event import (
     async_track_state_change_event,
     async_track_time_interval,
 )
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ALEXA_REPEAT,
@@ -64,6 +71,7 @@ from .const import (
     PLATFORM_ALEXA_MEDIA,
     RINGTONES,
     SOUNDS_URL,
+    VOLUME_RAMP_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,6 +87,9 @@ _SERVICE_SEND_SOUND = "send_sound"
 _ATTR_SOUND = "sound"
 # Alexa Media Player's media type for a sound from Amazon's library.
 _MEDIA_TYPE_SOUND = "sound"
+# How far the reported volume may stray from the one last set before it
+# counts as changed by hand: players round, Alexa to whole percent.
+_VOLUME_TOLERANCE = 0.015
 
 
 def ringtone_path(ringtone: str) -> str:
@@ -135,14 +146,35 @@ class AlarmClockSound:
         # leaving what it played before the alarm does not count as the tone
         # having finished.
         self._seen_playing = False
+        # The ramp: target volume and start in percent, its length in
+        # seconds, and when the ringing began.
+        self._volume = 0
+        self._ramp_from = 0
+        self._ramp_seconds = 0
+        self._ramp_started: datetime | None = None
+        self._ramp_unsub: CALLBACK_TYPE | None = None
+        # The volume level last set, to tell a change by hand from our own.
+        self._last_level: float | None = None
 
     @property
     def active(self) -> bool:
         """True while the ringtone is meant to be playing."""
         return self._player is not None
 
-    async def async_start(self, player: str, ringtone: str, volume: int) -> float | None:
+    async def async_start(
+        self,
+        player: str,
+        ringtone: str,
+        volume: int,
+        *,
+        ramp_from: int = 0,
+        ramp_seconds: int = 0,
+        started: datetime | None = None,
+    ) -> float | None:
         """Start ringing on a player.
+
+        With ramp_seconds the volume rises from ramp_from to volume, counted
+        from started, the moment the ringing began.
 
         Returns the volume level the player had before, when the alarm set
         its own, so that it can be restored; None when there is nothing to
@@ -161,17 +193,23 @@ class AlarmClockSound:
                     _LOGGER.error("%s: the ringtone cannot be played: %s", self._title, err)
                     return None
 
+            self._volume = volume
+            ramping = volume > 0 and ramp_seconds > 0 and ramp_from < volume
+            self._ramp_from = ramp_from if ramping else volume
+            self._ramp_seconds = ramp_seconds if ramping else 0
+            self._ramp_started = (started or dt_util.now()) if ramping else None
+
             previous: float | None = None
             if volume > 0:
                 state = self.hass.states.get(player)
                 level = state.attributes.get(ATTR_MEDIA_VOLUME_LEVEL) if state else None
                 if isinstance(level, (int, float)):
                     previous = float(level)
-                await self._async_call(
-                    MEDIA_PLAYER_DOMAIN,
-                    SERVICE_VOLUME_SET,
-                    {ATTR_ENTITY_ID: player, ATTR_MEDIA_VOLUME_LEVEL: volume / 100},
-                )
+                await self._async_set_volume(player, self._ramp_percent(dt_util.now()))
+                if self._ramp_percent(dt_util.now()) < volume:
+                    self._ramp_unsub = async_track_time_interval(
+                        self.hass, self._handle_ramp, VOLUME_RAMP_INTERVAL
+                    )
 
             self._player = player
             self._platform = platform
@@ -220,6 +258,8 @@ class AlarmClockSound:
 
     @callback
     def _release(self) -> None:
+        self._stop_ramp()
+        self._last_level = None
         if self._unsub is not None:
             self._unsub()
             self._unsub = None
@@ -228,6 +268,61 @@ class AlarmClockSound:
         self._ringtone = None
         self._url = None
         self._seen_playing = False
+
+    @callback
+    def _stop_ramp(self) -> None:
+        if self._ramp_unsub is not None:
+            self._ramp_unsub()
+            self._ramp_unsub = None
+
+    def _ramp_percent(self, now: datetime) -> int:
+        """The volume in percent the ramp has reached by now."""
+        if not self._ramp_seconds or self._ramp_started is None:
+            return self._volume
+        elapsed = (now - self._ramp_started).total_seconds()
+        share = min(1.0, max(0.0, elapsed / self._ramp_seconds))
+        return round(self._ramp_from + (self._volume - self._ramp_from) * share)
+
+    @callback
+    def _handle_ramp(self, _now: datetime) -> None:
+        """Take the next step of the ramp."""
+        self.hass.async_create_task(self._async_ramp_step())
+
+    async def _async_ramp_step(self) -> None:
+        async with self._lock:
+            player = self._player
+            if player is None or self._ramp_unsub is None:
+                return
+            state = self.hass.states.get(player)
+            reported = state.attributes.get(ATTR_MEDIA_VOLUME_LEVEL) if state else None
+            if (
+                isinstance(reported, (int, float))
+                and self._last_level is not None
+                and abs(reported - self._last_level) > _VOLUME_TOLERANCE
+            ):
+                _LOGGER.info(
+                    "%s: the volume of %s was changed by hand, the ramp stops there",
+                    self._title,
+                    player,
+                )
+                self._stop_ramp()
+                return
+            percent = self._ramp_percent(dt_util.now())
+            if percent >= self._volume:
+                self._stop_ramp()
+            await self._async_set_volume(player, percent)
+
+    async def _async_set_volume(self, player: str, percent: int) -> None:
+        """Set the player's volume, unless it was set to that already."""
+        level = percent / 100
+        if level == self._last_level:
+            return
+        await self._async_call(
+            MEDIA_PLAYER_DOMAIN,
+            SERVICE_VOLUME_SET,
+            {ATTR_ENTITY_ID: player, ATTR_MEDIA_VOLUME_LEVEL: level},
+        )
+        self._last_level = level
 
     @callback
     def _handle_player_change(self, event: Event[EventStateChangedData]) -> None:

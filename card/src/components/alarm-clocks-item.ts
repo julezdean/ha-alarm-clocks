@@ -18,7 +18,7 @@ import {
   setTime,
 } from "../lib/actions";
 import { createLocalizer, languageOf, type Localizer } from "../lib/localize";
-import type { AlarmView, SoundOption, SoundView } from "../lib/model";
+import type { AlarmView, SettingView, SoundOption, SoundView } from "../lib/model";
 import { formatAbsolute, formatClock, formatDuration, formatRelative } from "../lib/time";
 import { controlStyles, themeTokens } from "../styles";
 import type { HomeAssistant } from "../types";
@@ -367,7 +367,8 @@ export class MacaAlarmItem extends LitElement {
 
   /**
    * Speaker, ringtone and volume of the built-in alarm sound. Tone and volume
-   * only matter with a speaker, so they only show with one.
+   * only matter with a speaker, so they only show with one; where the volume
+   * starts and how long it rises only matter with a volume to rise to.
    */
   private _renderSound(sound: SoundView, localize: Localizer): TemplateResult {
     return html`
@@ -388,16 +389,23 @@ export class MacaAlarmItem extends LitElement {
               localize,
             )
           : nothing}
-        ${sound.enabled && sound.volume
-          ? html`<alarm-clocks-setting-row
-              .hass=${this.hass}
-              .setting=${sound.volume}
-              @setting-changed=${this._onSettingChanged}
-              @setting-more-info=${this._onSettingMoreInfo}
-            ></alarm-clocks-setting-row>`
+        ${sound.enabled && sound.volume ? this._renderSoundSetting(sound.volume) : nothing}
+        ${sound.enabled && sound.volume && sound.volume.value > 0
+          ? [sound.volumeStart, sound.volumeRamp].map((setting) =>
+              setting ? this._renderSoundSetting(setting) : nothing,
+            )
           : nothing}
       </div>
     `;
+  }
+
+  private _renderSoundSetting(setting: SettingView): TemplateResult {
+    return html`<alarm-clocks-setting-row
+      .hass=${this.hass}
+      .setting=${setting}
+      @setting-changed=${this._onSettingChanged}
+      @setting-more-info=${this._onSettingMoreInfo}
+    ></alarm-clocks-setting-row>`;
   }
 
   private _renderSelect(
