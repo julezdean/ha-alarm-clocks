@@ -4,6 +4,48 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 versioning [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+The alarm clock can now ring by itself: pick a media player and a ringtone,
+and it plays while the alarm rings and stops on snooze and dismiss. Without a
+media player, the default, nothing changes.
+
+### Added
+
+- A built-in alarm sound. `select.<a>_media_player` picks the player and
+  `select.<a>_ringtone` one of four bundled tones (Classic, Digital, Chime,
+  Gentle). While the alarm rings the tone plays over and over; snooze,
+  dismiss, the automatic dismiss and switching the alarm clock off stop it,
+  and it starts over when a snooze ends. The player has to reach Home
+  Assistant under its configured URL, which serves the tones.
+- An Echo rings with a sound from Amazon's library, since Amazon does not let
+  it play a file from a URL. Through Home Assistant's Alexa integration it
+  gets `alexa_devices.send_sound`, through Alexa Media Player `play_media` of
+  type `sound`. Its ringtones are the 41 sounds the Alexa integration offers,
+  repeated every five seconds; switching between an Echo and another player
+  picks that player's default tone when the chosen one does not fit.
+- `number.<a>_volume`, the volume the player rings at. The previous volume is
+  restored when the sound stops, also after a restart while ringing. Zero,
+  the default, leaves the volume alone.
+- A rising volume. `number.<a>_volume_start` sets where it starts and
+  `number.<a>_volume_ramp` how many seconds it takes to reach the volume,
+  one step every ten seconds. It starts over after every snooze, never
+  outlasts the auto dismiss, and stops where someone turned the speaker by
+  hand.
+- The card shows speaker, ringtone and volume on an expanded alarm, under
+  the new option `show_sound`, on by default; with a volume set, also where
+  it rises from and over how long, and a hint when the start is not below the
+  volume, so that the volume has nowhere to rise. Speakers that share a name,
+  like one Echo reached through two Alexa integrations, carry the name of
+  their integration.
+
+### Fixed
+
+- Home Assistant warned that the integration looks up its device in a way it
+  deprecated and stops supporting in 2027.8. The alarm clock now finds its
+  device among those of its own config entry, which works on every supported
+  version.
+
 ## [3.0.0] - 2026-09-28
 
 Every phase of a wake-up now has a sequence of actions instead of a single

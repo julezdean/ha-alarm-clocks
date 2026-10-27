@@ -72,6 +72,25 @@ function addDeviceEntities(entities, states, id, slug, opts = {}) {
   add(`sensor.${slug}_post_aktionen_fallig`, "post_due", opts.postDue ?? "unknown");
   add(`button.${slug}_snooze`, "snooze", "unknown");
   add(`button.${slug}_dismiss`, "dismiss", "unknown");
+  add(`number.${slug}_volume`, "volume", String(opts.volume ?? 40), { min: 0, max: 100, step: 5 });
+  add(`number.${slug}_volume_start`, "volume_start", String(opts.volumeStart ?? 10), { min: 0, max: 100, step: 5 });
+  add(`number.${slug}_volume_ramp`, "volume_ramp", String(opts.ramp ?? 0), { min: 0, max: 600, step: 10 });
+  add(`select.${slug}_media_player`, "media_player", opts.player ?? "none", {
+    options: ["none", "media_player.schlafzimmer", "media_player.bad"],
+  });
+  add(`select.${slug}_ringtone`, "ringtone", "chime", {
+    options: ["classic", "digital", "chime", "gentle"],
+  });
+  states["media_player.schlafzimmer"] = {
+    entity_id: "media_player.schlafzimmer",
+    state: "idle",
+    attributes: { friendly_name: "Schlafzimmer" },
+  };
+  states["media_player.bad"] = {
+    entity_id: "media_player.bad",
+    state: "idle",
+    attributes: { friendly_name: "Bad" },
+  };
 }
 
 function makeHass(overrides = {}) {
@@ -755,6 +774,201 @@ for (const name of results) {
     }
     assert.equal(calls.length, before);
   });
+}
+
+// --- alarm sound ---------------------------------------------------------------
+{
+  const { hass } = makeHass();
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
+  check("sound: without a speaker only the speaker picker shows", () => {
+    const selects = deepQueryAll(card.shadowRoot, "select");
+    assert.equal(selects.length, 1);
+    const labels = [...selects[0].options].map((option) => option.textContent.trim());
+    assert.deepEqual(labels, ["Kein Ton", "Bad", "Schlafzimmer"]);
+    assert.equal(selects[0].value, "none");
+    assert.doesNotMatch(visibleText(card), /Lautstärke/);
+  });
+  card.remove();
+}
+
+{
+  const { hass, calls } = makeHass({
+    devices: [{ id: DEVICE, slug: "wecker_1", name: "Wecker 1", player: "media_player.bad" }],
+  });
+  const card = await mount(
+    { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+    hass,
+  );
+  const [player, ringtone] = deepQueryAll(card.shadowRoot, "select");
+  check("sound: with a speaker, tone and volume show", () => {
+    assert.equal(player.value, "media_player.bad");
+    assert.equal(ringtone.value, "chime");
+    assert.deepEqual(
+      [...ringtone.options].map((option) => option.textContent.trim()),
+      ["Klassisch", "Digital", "Glocke", "Sanft"],
+    );
+    assert.match(visibleText(card), /Lautstärke 40 %/);
+  });
+  check("sound: with a volume, where it rises from and how long show", () => {
+    const text = visibleText(card);
+    assert.match(text, /Ansteigend ab 10 %/);
+    assert.match(text, /Anstieg aus/);
+  });
+  check("sound: picking a tone calls select.select_option", () => {
+    ringtone.value = "gentle";
+    ringtone.dispatchEvent(new window.Event("change", { bubbles: true }));
+    assert.deepEqual(calls.at(-1), [
+      "select",
+      "select_option",
+      { option: "gentle" },
+      { entity_id: "select.wecker_1_ringtone" },
+    ]);
+  });
+  // An Echo as speaker: the integration offers Amazon's sounds instead. A new
+  // states object with a new state in it, as Home Assistant hands them out.
+  card.hass = {
+    ...hass,
+    states: {
+      ...hass.states,
+      "select.wecker_1_ringtone": {
+        ...hass.states["select.wecker_1_ringtone"],
+        state: "amzn_sfx_scifi_alarm_01",
+        attributes: { options: ["amzn_sfx_scifi_alarm_01", "bell_02", "clock_01"] },
+      },
+    },
+  };
+  await card.updateComplete;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  check("sound: an Echo's Amazon sounds read as their names, not their IDs", () => {
+    const [, tones] = deepQueryAll(card.shadowRoot, "select");
+    assert.deepEqual(
+      [...tones.options].map((option) => option.textContent.trim()),
+      ["Sirenen", "Glocken", "Tickende Uhr"],
+    );
+    assert.equal(tones.value, "amzn_sfx_scifi_alarm_01");
+  });
+  card.remove();
+}
+
+{
+  const { hass } = makeHass({
+    devices: [
+      { id: DEVICE, slug: "wecker_1", name: "Wecker 1", player: "media_player.bad", volume: 0 },
+    ],
+  });
+  const card = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      devices: [{ device_id: DEVICE, expanded: true }],
+    },
+    hass,
+  );
+  check("sound: volume zero reads as the player's own", () => {
+    assert.match(visibleText(card), /Lautstärke wie eingestellt/);
+  });
+  check("sound: without a volume there is nothing to rise to", () => {
+    const text = visibleText(card);
+    assert.doesNotMatch(text, /Ansteigend ab/);
+    assert.doesNotMatch(text, /Anstieg/);
+  });
+  card.remove();
+
+  const hidden = await mount(
+    {
+      type: "custom:alarm-clocks-card",
+      show_sound: false,
+      devices: [{ device_id: DEVICE, expanded: true }],
+    },
+    hass,
+  );
+  check("sound: show_sound: false hides it", () => {
+    assert.equal(deepQueryAll(hidden.shadowRoot, "select").length, 0);
+  });
+  hidden.remove();
+}
+
+// --- speakers that share a name ------------------------------------------------
+{
+  const players = {
+    "media_player.echo_dot_kuche": ["Echo Dot Küche", "alexa_media"],
+    "media_player.kuche_echo_dot_kuche": ["Echo Dot Küche", "alexa_devices"],
+    "media_player.cast_a": ["Kitchen", "cast"],
+    "media_player.cast_b": ["Kitchen", "cast"],
+    "media_player.wohnzimmer": ["Wohnzimmer", "cast"],
+  };
+  const build = (localize) => {
+    const { hass } = makeHass();
+    const states = { ...hass.states };
+    const entities = { ...hass.entities };
+    for (const [entityId, [name, platform]] of Object.entries(players)) {
+      states[entityId] = { entity_id: entityId, state: "idle", attributes: { friendly_name: name } };
+      entities[entityId] = { entity_id: entityId, platform };
+    }
+    states["select.wecker_1_media_player"] = {
+      ...states["select.wecker_1_media_player"],
+      attributes: { options: ["none", ...Object.keys(players)] },
+    };
+    return { ...hass, states, entities, ...(localize ? { localize } : {}) };
+  };
+  const labelsOf = async (hass) => {
+    const card = await mount(
+      { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+      hass,
+    );
+    const [select] = deepQueryAll(card.shadowRoot, "select");
+    const labels = [...select.options].map((option) => option.textContent.trim());
+    card.remove();
+    return labels;
+  };
+
+  const plain = await labelsOf(build());
+  check("speakers: a shared name gets its integration, a unique one stays as it is", () => {
+    assert.ok(plain.includes("Echo Dot Küche · Alexa Media Player"));
+    assert.ok(plain.includes("Echo Dot Küche · Alexa Devices"));
+    assert.ok(plain.includes("Wohnzimmer"));
+    assert.ok(!plain.includes("Echo Dot Küche"));
+  });
+  check("speakers: one name in one integration falls back to the entity ID", () => {
+    assert.ok(plain.includes("Kitchen · Google Cast · media_player.cast_a"));
+    assert.ok(plain.includes("Kitchen · Google Cast · media_player.cast_b"));
+  });
+
+  // The frontend's own title wins over the built-in list; an unknown key
+  // comes back empty, as in Home Assistant.
+  const titled = await labelsOf(
+    build((key) => (key === "component.alexa_devices.title" ? "Amazon Alexa (Kern)" : "")),
+  );
+  check("speakers: the integration's title comes from the frontend when it has one", () => {
+    assert.ok(titled.includes("Echo Dot Küche · Amazon Alexa (Kern)"));
+    assert.ok(titled.includes("Echo Dot Küche · Alexa Media Player"));
+  });
+}
+
+// --- rising volume that cannot rise -------------------------------------------
+{
+  const cases = [
+    { label: "start at the volume", volume: 5, volumeStart: 5, ramp: 60, hint: true },
+    { label: "start above the volume", volume: 5, volumeStart: 10, ramp: 60, hint: true },
+    { label: "a real rise", volume: 70, volumeStart: 10, ramp: 60, hint: false },
+    { label: "no ramp set", volume: 5, volumeStart: 10, ramp: 0, hint: false },
+  ];
+  for (const { label, hint, ...opts } of cases) {
+    const { hass } = makeHass({
+      devices: [{ id: DEVICE, slug: "wecker_1", name: "Wecker 1", player: "media_player.bad", ...opts }],
+    });
+    const card = await mount(
+      { type: "custom:alarm-clocks-card", devices: [{ device_id: DEVICE, expanded: true }] },
+      hass,
+    );
+    check(`ramp hint: ${label} ${hint ? "shows" : "does not show"} it`, () => {
+      const text = visibleText(card);
+      (hint ? assert.match : assert.doesNotMatch)(text, /Kein Anstieg/);
+    });
+    card.remove();
+  }
 }
 
 console.log(`\n${results.length} checks passed`);

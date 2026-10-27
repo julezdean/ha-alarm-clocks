@@ -38,6 +38,8 @@ from .const import (
     SERVICE_SET_ALARM,
     SERVICE_SNOOZE,
     SERVICE_TRIGGER_ALARM,
+    SOUNDS_REGISTERED,
+    SOUNDS_URL,
     WEEKDAYS,
 )
 from .coordinator import AlarmClockConfigEntry, AlarmClockCoordinator
@@ -194,6 +196,26 @@ async def _async_register_card(hass: HomeAssistant) -> None:
         )
 
 
+async def _async_register_sounds(hass: HomeAssistant) -> None:
+    """Serve the bundled ringtones to the media players.
+
+    Without authentication: a speaker fetching a file has no token. The
+    files are public anyway, they ship with the integration.
+    """
+    if hass.data.setdefault(DOMAIN, {}).get(SOUNDS_REGISTERED):
+        return
+    path = Path(__file__).parent / "sounds"
+    try:
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(SOUNDS_URL, str(path), True)]
+        )
+    except (HomeAssistantError, RuntimeError, ValueError) as err:
+        # Everything but the ringtone keeps working.
+        _LOGGER.error("The ringtones could not be served: %s", err)
+        return
+    hass.data[DOMAIN][SOUNDS_REGISTERED] = True
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the services of the integration."""
 
@@ -227,6 +249,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     )
 
     await _async_register_card(hass)
+    await _async_register_sounds(hass)
     return True
 
 

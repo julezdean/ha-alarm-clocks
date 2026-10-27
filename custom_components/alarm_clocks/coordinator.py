@@ -69,6 +69,7 @@ from .const import (
 )
 from .actions import AlarmClockActions
 from .models import RuntimeState, AlarmClockConfig, AlarmClockSnapshot
+from .sound import AlarmClockSound
 from .store import AlarmClockStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         self._unsubs: list[CALLBACK_TYPE] = []
         self._device_id: str | None = None
         self._actions = AlarmClockActions(hass, entry.title)
+        self._sound = AlarmClockSound(hass, entry.title)
         # Set while a one-shot alarm clock switches itself off at the end of
         # its cycle, which unlike switching it off by hand aborts nothing.
         self._self_disabling = False
@@ -133,6 +135,7 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         """
         self._unloading = True
         self._async_cancel_timers()
+        self._sound.async_shutdown()
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -191,6 +194,7 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
                 self._async_start_actions(
                     PHASE_ALARM, self._payload({}), Context()
                 )
+                await self._async_start_sound()
             else:
                 self.runtime.ringing = False
                 self.runtime.ringing_since = None
@@ -277,10 +281,23 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
 
     @property
     def device_id(self) -> str | None:
-        """Device ID of the alarm clock (used in event payloads)."""
+        """Device ID of the alarm clock (used in event payloads).
+
+        Looked up among this entry's own devices: an identifier alone no
+        longer names a device uniquely across config entries, which is why
+        Home Assistant deprecated looking one up by it.
+        """
         if self._device_id is None:
-            device = dr.async_get(self.hass).async_get_device(
-                identifiers={(DOMAIN, self.config_entry.entry_id)}
+            identifier = (DOMAIN, self.config_entry.entry_id)
+            device = next(
+                (
+                    device
+                    for device in dr.async_entries_for_config_entry(
+                        dr.async_get(self.hass), self.config_entry.entry_id
+                    )
+                    if identifier in device.identifiers
+                ),
+                None,
             )
             self._device_id = device.id if device else None
         return self._device_id
@@ -497,6 +514,7 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
 
         self._async_reschedule()
         self._async_push()
+        await self._async_start_sound()
 
     async def async_snooze(self, duration: int | None = None) -> None:
         """Snooze the alarm."""
@@ -521,6 +539,7 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         await self._async_save()
 
         await self._actions.async_stop(PHASE_ALARM)
+        await self._async_stop_sound()
         self._async_fire_and_run(
             PHASE_SNOOZE,
             EVENT_SNOOZED,
@@ -561,6 +580,7 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         await self._async_save()
 
         await self._actions.async_stop(PHASE_ALARM)
+        await self._async_stop_sound()
         self._async_fire_and_run(PHASE_DISMISS, EVENT_DISMISSED, {ATTR_SOURCE: source})
 
         # A post offset of zero disables the post phase entirely. The
@@ -596,6 +616,7 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
 
         self._async_set_timer(TIMER_POST_TIMEOUT, None, None)
         await self._actions.async_stop_all()
+        await self._async_stop_sound()
 
         if was_ringing:
             self._async_fire_and_run(
@@ -742,6 +763,37 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
         )
         self._async_reschedule()
         self._async_push()
+
+    # ------------------------------------------------------------------
+    # Ringtone
+    # ------------------------------------------------------------------
+    async def _async_start_sound(self) -> None:
+        """Ring on the chosen media player, if there is one.
+
+        The volume to restore is only taken when none is stored yet: after a
+        restart while ringing, the player already has the alarm's volume.
+        """
+        player = self.config.media_player
+        if player is None:
+            return
+        previous = await self._sound.async_start(
+            player,
+            self.config.ringtone,
+            self.config.volume,
+            ramp_from=self.config.volume_start,
+            ramp_seconds=self.config.ramp_seconds,
+            started=self.runtime.ringing_since,
+        )
+        if self.runtime.sound_restore_volume is None and previous is not None:
+            self.runtime.sound_restore_volume = previous
+            await self._async_save()
+
+    async def _async_stop_sound(self) -> None:
+        """Stop the ringtone and give the player its volume back."""
+        await self._sound.async_stop(self.runtime.sound_restore_volume)
+        if self.runtime.sound_restore_volume is not None:
+            self.runtime.sound_restore_volume = None
+            await self._async_save()
 
     # ------------------------------------------------------------------
     # Helpers

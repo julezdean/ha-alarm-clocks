@@ -13,6 +13,7 @@ PLATFORMS: Final[list[Platform]] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.TIME,
@@ -37,6 +38,15 @@ CONF_SNOOZE_ACTIONS: Final = "snooze_actions"
 CONF_DISMISS_ACTIONS: Final = "dismiss_actions"
 CONF_POST_ACTIONS: Final = "post_actions"
 CONF_POST_TIMEOUT: Final = "post_timeout"
+
+# The built-in ringtone: which media player rings, with which tone and how
+# loud. Without a media player there is no sound.
+CONF_MEDIA_PLAYER: Final = "media_player"
+CONF_RINGTONE: Final = "ringtone"
+CONF_VOLUME: Final = "volume"
+# A rising volume: from volume_start to volume over volume_ramp seconds.
+CONF_VOLUME_START: Final = "volume_start"
+CONF_VOLUME_RAMP: Final = "volume_ramp"
 
 PHASE_PRE: Final = "pre"
 PHASE_ALARM: Final = "alarm"
@@ -73,6 +83,12 @@ DEFAULT_PRE_OFFSET: Final = 0
 DEFAULT_POST_OFFSET: Final = 0
 DEFAULT_AUTO_DISMISS: Final = 10
 DEFAULT_POST_TIMEOUT: Final = 60
+DEFAULT_RINGTONE: Final = "classic"
+# Zero leaves the volume of the media player as it is.
+DEFAULT_VOLUME: Final = 0
+DEFAULT_VOLUME_START: Final = 10
+# Zero means no ramp: the alarm rings at its volume right away.
+DEFAULT_VOLUME_RAMP: Final = 0
 
 MIN_SNOOZE_DURATION: Final = 0
 MAX_SNOOZE_DURATION: Final = 30
@@ -82,6 +98,75 @@ MIN_AUTO_DISMISS: Final = 0
 MAX_AUTO_DISMISS: Final = 120
 MIN_POST_TIMEOUT: Final = 1
 MAX_POST_TIMEOUT: Final = 240
+MIN_VOLUME: Final = 0
+MAX_VOLUME: Final = 100
+VOLUME_STEP: Final = 5
+MIN_VOLUME_RAMP: Final = 0
+# The ramp never outlasts the automatic dismiss; without one, half an hour.
+MAX_VOLUME_RAMP: Final = 1800
+VOLUME_RAMP_STEP: Final = 10
+
+# Bundled ringtones, one WAV file each in sounds/ (see scripts/make_ringtones.py).
+RINGTONES: Final = ("classic", "digital", "chime", "gentle")
+
+# An Echo plays no file from a URL, only sounds from Amazon's own library.
+# These are the ones Home Assistant's alexa_devices integration offers; Alexa
+# Media Player plays the same IDs.
+ALEXA_SOUNDS: Final = (
+    "air_horn_03",
+    "amzn_sfx_cat_meow_1x_01",
+    "amzn_sfx_church_bell_1x_02",
+    "amzn_sfx_crowd_applause_01",
+    "amzn_sfx_dog_med_bark_1x_02",
+    "amzn_sfx_doorbell_01",
+    "amzn_sfx_doorbell_chime_01",
+    "amzn_sfx_doorbell_chime_02",
+    "amzn_sfx_large_crowd_cheer_01",
+    "amzn_sfx_lion_roar_02",
+    "amzn_sfx_rooster_crow_01",
+    "amzn_sfx_scifi_alarm_01",
+    "amzn_sfx_scifi_alarm_04",
+    "amzn_sfx_scifi_engines_on_02",
+    "amzn_sfx_scifi_sheilds_up_01",
+    "amzn_sfx_trumpet_bugle_04",
+    "amzn_sfx_wolf_howl_02",
+    "bell_02",
+    "boing_01",
+    "boing_03",
+    "buzzers_pistols_01",
+    "camera_01",
+    "christmas_05",
+    "clock_01",
+    "futuristic_10",
+    "halloween_bats",
+    "halloween_crows",
+    "halloween_footsteps",
+    "halloween_wind",
+    "halloween_wolf",
+    "holiday_halloween_ghost",
+    "horror_10",
+    "med_system_alerts_minimal_dragon_short",
+    "med_system_alerts_minimal_owl_short",
+    "med_system_alerts_minimals_blue_wave_small",
+    "med_system_alerts_minimals_galaxy_short",
+    "med_system_alerts_minimals_panda_short",
+    "med_system_alerts_minimals_tiger_short",
+    "med_ui_success_generic_1-1",
+    "squeaky_12",
+    "zap_01",
+)
+DEFAULT_ALEXA_SOUND: Final = "amzn_sfx_scifi_alarm_01"
+PLATFORM_ALEXA_DEVICES: Final = "alexa_devices"
+PLATFORM_ALEXA_MEDIA: Final = "alexa_media"
+# An Echo reports no state while it plays a sound, so the sound is repeated
+# on a clock instead of when it has finished. Every repetition goes through
+# Amazon's cloud, which is why this is not shorter.
+ALEXA_REPEAT: Final = timedelta(seconds=5)
+# How often a rising volume takes its next step. Every step is a volume_set,
+# on an Echo through Amazon's cloud like the repeated sound.
+VOLUME_RAMP_INTERVAL: Final = timedelta(seconds=10)
+# Option of the media player select that means no sound at all.
+MEDIA_PLAYER_NONE: Final = "none"
 
 # Weekdays in the order of datetime.weekday() (0 = Monday)
 WEEKDAYS: Final = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -160,6 +245,12 @@ RESUME_GRACE: Final = timedelta(hours=1)
 CARD_FILENAME: Final = "alarm-clocks-card.js"
 CARD_URL: Final = f"/{DOMAIN}/{CARD_FILENAME}"
 CARD_REGISTERED: Final = "card_registered"
+
+# ---------------------------------------------------------------------------
+# Bundled ringtones
+# ---------------------------------------------------------------------------
+SOUNDS_URL: Final = f"/{DOMAIN}/sounds"
+SOUNDS_REGISTERED: Final = "sounds_registered"
 
 STORAGE_VERSION: Final = 1
 STORAGE_KEY_TEMPLATE: Final = f"{DOMAIN}.{{entry_id}}"

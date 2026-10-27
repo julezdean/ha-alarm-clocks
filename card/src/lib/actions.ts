@@ -40,6 +40,14 @@ export function setNumber(
   return hass.callService("number", "set_value", { value }, { entity_id: entityId });
 }
 
+export function selectOption(
+  hass: HomeAssistant,
+  entityId: string,
+  option: string,
+): Promise<unknown> {
+  return hass.callService("select", "select_option", { option }, { entity_id: entityId });
+}
+
 export function setTime(
   hass: HomeAssistant,
   entityId: string,
