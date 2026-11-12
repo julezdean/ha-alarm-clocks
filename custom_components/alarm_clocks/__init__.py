@@ -88,7 +88,8 @@ def _async_resolve_coordinators(
                 translation_key="device_not_found",
                 translation_placeholders={"device_id": device_id},
             )
-        entry_ids.update(device.config_entries)
+        if device.config_entry_id is not None:
+            entry_ids.add(device.config_entry_id)
 
     entity_reg = er.async_get(hass)
     for entity_id in call.data.get(ATTR_ENTITY_ID, []):
