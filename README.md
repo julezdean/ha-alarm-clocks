@@ -324,6 +324,11 @@ actions:
   finished, that is when it goes from playing to idle, paused or on. A
   player that never reports playing plays the tone once. A player switched
   off while ringing is left off.
+- A Cast player that is off has to start its media app first, which on a
+  Chromecast took about 15 seconds before the first tone. Once it runs, the
+  tone starts again within a fraction of a second.
+- A player that reports no volume, like a Chromecast that is off, leaves the
+  alarm nothing to restore: it keeps the alarm's volume afterwards.
 - On an Echo the sound repeats every five seconds, whatever its length, so a
   short one leaves a pause and a long one is cut into. Every repetition goes
   through Amazon's cloud.
@@ -332,9 +337,9 @@ actions:
   integration it is treated as an ordinary player and stays silent.
 - A new media player, ringtone or volume applies from the next time the
   alarm rings, not to one that is ringing.
-- A rising volume moves in steps of ten seconds, not smoothly. Whether a step
-  lands as set depends on the player: an Echo, for one, may round it to its
-  own volume levels.
+- A rising volume moves in steps of ten seconds, not smoothly. A player that
+  reports back a volume more than a point and a half off the one it was set
+  to looks like it was turned by hand, and the ramp stops there.
 - The media player is stored by its entity ID. After renaming that, choose
   it again.
 - The integration ships its own icon, which Home Assistant only reads from
