@@ -26,6 +26,9 @@ export const STATUS = {
 
 export type AlarmStatus = (typeof STATUS)[keyof typeof STATUS] | "unknown";
 
+/** Option of `select.<alarm>_media_player` that means no sound, mirrored from const.py. */
+export const MEDIA_PLAYER_NONE = "none";
+
 export const UNAVAILABLE_STATES = ["unavailable", "unknown", "none", ""];
 
 export const STATUS_ICONS: Record<AlarmStatus, string> = {

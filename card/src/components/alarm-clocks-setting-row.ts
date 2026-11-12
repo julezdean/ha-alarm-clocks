@@ -16,8 +16,8 @@ export class MacaSettingRow extends LitElement {
     const label = localize(this.setting.labelKey);
     const isOff = this.setting.zeroMeansOff && this.setting.value === 0;
     const display = isOff
-      ? localize("label.off")
-      : `${this.setting.value} ${localize("unit.minutes_short")}`;
+      ? localize(this.setting.zeroLabelKey ?? "label.off")
+      : `${this.setting.value} ${localize(this.setting.unitKey ?? "unit.minutes_short")}`;
 
     return html`
       <div class="row">

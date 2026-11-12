@@ -1,11 +1,11 @@
-"""Number entities: snooze duration, pre/post offset and auto dismiss."""
+"""Number entities: snooze duration, pre/post offset, auto dismiss and the volume."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription, NumberMode
-from homeassistant.const import EntityCategory, UnitOfTime
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -14,12 +14,21 @@ from .const import (
     CONF_POST_OFFSET,
     CONF_PRE_OFFSET,
     CONF_SNOOZE_DURATION,
+    CONF_VOLUME,
+    CONF_VOLUME_RAMP,
+    CONF_VOLUME_START,
     MAX_AUTO_DISMISS,
     MAX_OFFSET,
     MAX_SNOOZE_DURATION,
+    MAX_VOLUME,
+    MAX_VOLUME_RAMP,
     MIN_AUTO_DISMISS,
     MIN_OFFSET,
     MIN_SNOOZE_DURATION,
+    MIN_VOLUME,
+    MIN_VOLUME_RAMP,
+    VOLUME_RAMP_STEP,
+    VOLUME_STEP,
 )
 from .coordinator import AlarmClockConfigEntry, AlarmClockCoordinator
 from .entity import AlarmClockEntity
@@ -77,6 +86,43 @@ NUMBERS: tuple[AlarmClockNumberDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.MINUTES,
         entity_category=EntityCategory.CONFIG,
     ),
+    # Zero leaves the media player's own volume as it is.
+    AlarmClockNumberDescription(
+        key=CONF_VOLUME,
+        translation_key=CONF_VOLUME,
+        option_key=CONF_VOLUME,
+        icon="mdi:volume-high",
+        native_min_value=MIN_VOLUME,
+        native_max_value=MAX_VOLUME,
+        native_step=VOLUME_STEP,
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.CONFIG,
+    ),
+    # Where a rising volume starts.
+    AlarmClockNumberDescription(
+        key=CONF_VOLUME_START,
+        translation_key=CONF_VOLUME_START,
+        option_key=CONF_VOLUME_START,
+        icon="mdi:volume-low",
+        native_min_value=MIN_VOLUME,
+        native_max_value=MAX_VOLUME,
+        native_step=VOLUME_STEP,
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.CONFIG,
+    ),
+    # How long it rises; zero means no ramp. Its maximum follows the auto
+    # dismiss, see AlarmClockNumber.native_max_value.
+    AlarmClockNumberDescription(
+        key=CONF_VOLUME_RAMP,
+        translation_key=CONF_VOLUME_RAMP,
+        option_key=CONF_VOLUME_RAMP,
+        icon="mdi:volume-plus",
+        native_min_value=MIN_VOLUME_RAMP,
+        native_max_value=MAX_VOLUME_RAMP,
+        native_step=VOLUME_RAMP_STEP,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        entity_category=EntityCategory.CONFIG,
+    ),
 )
 
 
@@ -93,7 +139,7 @@ async def async_setup_entry(
 
 
 class AlarmClockNumber(AlarmClockEntity, NumberEntity):
-    """A configurable minute value of the alarm clock."""
+    """A configurable value of the alarm clock: minutes, or the volume."""
 
     entity_description: AlarmClockNumberDescription
     _attr_mode = NumberMode.BOX
@@ -106,8 +152,16 @@ class AlarmClockNumber(AlarmClockEntity, NumberEntity):
         self.entity_description = description
 
     @property
+    def native_max_value(self) -> float:
+        """The upper limit; the ramp may not outlast the automatic dismiss."""
+        maximum = float(self.entity_description.native_max_value)
+        if self.entity_description.key == CONF_VOLUME_RAMP and self.config.auto_dismiss > 0:
+            return min(maximum, float(self.config.auto_dismiss * 60))
+        return maximum
+
+    @property
     def native_value(self) -> float:
-        """Current value in minutes."""
+        """Current value."""
         return float(getattr(self.config, self.entity_description.option_key))
 
     async def async_set_native_value(self, value: float) -> None:

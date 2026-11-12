@@ -39,17 +39,29 @@ jobs:
           gh release upload "${{ github.event.release.tag_name }}" \
             alarm_clocks.zip --clobber
 
-      - name: Take the release notes and the date from the changelog
+      # Notes given when the release was created are a summary written for
+      # the release page, one entry per line, and stay. The changelog is
+      # hard-wrapped, and the release page breaks at every newline, so its
+      # text only stands in for notes nobody wrote.
+      - name: Take the date from the changelog, and the notes unless given
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.release.tag_name }}
+          GIVEN_NOTES: ${{ github.event.release.body }}
         run: |
           if ! python3 scripts/release_notes.py "$TAG" > notes.md; then
-            echo "Leaving the release notes as they are"
+            echo "No changelog section for $TAG, leaving the release as it is"
             exit 0
           fi
-          if date=$(python3 scripts/release_notes.py --date "$TAG"); then
-            gh release edit "$TAG" --notes-file notes.md --title "$date"
+          args=()
+          if [ -z "$GIVEN_NOTES" ]; then
+            args+=(--notes-file notes.md)
           else
-            gh release edit "$TAG" --notes-file notes.md
+            echo "Keeping the release notes given on creation"
+          fi
+          if date=$(python3 scripts/release_notes.py --date "$TAG"); then
+            args+=(--title "$date")
+          fi
+          if [ ${#args[@]} -gt 0 ]; then
+            gh release edit "$TAG" "${args[@]}"
           fi

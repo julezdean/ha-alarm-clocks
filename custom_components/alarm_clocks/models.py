@@ -15,16 +15,25 @@ from .const import (
     CONF_AUTO_DISMISS,
     CONF_DAYS,
     CONF_ENABLED,
+    CONF_MEDIA_PLAYER,
     CONF_POST_OFFSET,
     CONF_POST_TIMEOUT,
     CONF_PRE_OFFSET,
+    CONF_RINGTONE,
     CONF_SNOOZE_DURATION,
+    CONF_VOLUME,
+    CONF_VOLUME_RAMP,
+    CONF_VOLUME_START,
     DEFAULT_ALARM_TIME,
     DEFAULT_AUTO_DISMISS,
     DEFAULT_POST_OFFSET,
     DEFAULT_POST_TIMEOUT,
     DEFAULT_PRE_OFFSET,
+    DEFAULT_RINGTONE,
     DEFAULT_SNOOZE_DURATION,
+    DEFAULT_VOLUME,
+    DEFAULT_VOLUME_RAMP,
+    DEFAULT_VOLUME_START,
 )
 
 
@@ -68,6 +77,15 @@ def _parse_int(value: Any, default: int) -> int:
         return default
 
 
+def _parse_volume_level(value: Any) -> float | None:
+    """A stored volume level between 0 and 1, or None."""
+    try:
+        level = float(value)
+    except (TypeError, ValueError):
+        return None
+    return level if 0 <= level <= 1 else None
+
+
 @dataclass(slots=True)
 class AlarmClockConfig:
     """User configurable part of an alarm clock."""
@@ -82,6 +100,24 @@ class AlarmClockConfig:
     post_timeout: int = DEFAULT_POST_TIMEOUT
     # Phase -> raw action sequence as stored in the options.
     actions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    # Entity ID of the media player that rings; None means no sound.
+    media_player: str | None = None
+    ringtone: str = DEFAULT_RINGTONE
+    # Volume in percent while ringing; zero leaves the player's volume alone.
+    volume: int = DEFAULT_VOLUME
+    # A rising volume: from volume_start to volume over volume_ramp seconds.
+    # Zero seconds, or no volume to rise to, means no ramp.
+    volume_start: int = DEFAULT_VOLUME_START
+    volume_ramp: int = DEFAULT_VOLUME_RAMP
+
+    @property
+    def ramp_seconds(self) -> int:
+        """How long the volume rises; never longer than until the auto dismiss."""
+        if self.volume <= 0 or self.volume_start >= self.volume:
+            return 0
+        if self.auto_dismiss > 0:
+            return max(0, min(self.volume_ramp, self.auto_dismiss * 60))
+        return max(0, self.volume_ramp)
 
     @property
     def is_one_shot(self) -> bool:
@@ -110,6 +146,15 @@ class AlarmClockConfig:
                 phase: parse_actions(options.get(key))
                 for phase, key in ACTION_KEYS.items()
             },
+            media_player=options.get(CONF_MEDIA_PLAYER) or None,
+            # Whether it fits the player is only known with the player; see
+            # sound.effective_ringtone.
+            ringtone=str(options.get(CONF_RINGTONE) or DEFAULT_RINGTONE),
+            volume=_parse_int(options.get(CONF_VOLUME), DEFAULT_VOLUME),
+            volume_start=_parse_int(
+                options.get(CONF_VOLUME_START), DEFAULT_VOLUME_START
+            ),
+            volume_ramp=_parse_int(options.get(CONF_VOLUME_RAMP), DEFAULT_VOLUME_RAMP),
         )
 
 
@@ -126,6 +171,10 @@ class RuntimeState:
     # The post actions are running. Their run does not survive a restart,
     # this only tells the restart that the cycle still has to be finished.
     post_active: bool = False
+    # Volume level (0..1) the media player had before the alarm set its own,
+    # to be restored when the sound stops. Kept here so that a restart while
+    # ringing does not mistake the alarm volume for the player's own.
+    sound_restore_volume: float | None = None
 
     def as_dict(self) -> dict[str, Any]:
         """Serialise for persistence."""
@@ -140,6 +189,7 @@ class RuntimeState:
             "post_due_at": self.post_due_at.isoformat() if self.post_due_at else None,
             "pre_until": self.pre_until.isoformat() if self.pre_until else None,
             "post_active": self.post_active,
+            "sound_restore_volume": self.sound_restore_volume,
         }
 
     @classmethod
@@ -162,6 +212,7 @@ class RuntimeState:
             post_due_at=_dt("post_due_at"),
             pre_until=_dt("pre_until"),
             post_active=bool(data.get("post_active", False)),
+            sound_restore_volume=_parse_volume_level(data.get("sound_restore_volume")),
         )
 
 

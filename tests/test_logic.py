@@ -12,8 +12,8 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from custom_components.alarm_clocks.const import (
@@ -437,3 +437,42 @@ async def test_post_offset_zero_still_disables_one_shot(
     await hass.async_block_till_done()
 
     assert coordinator.config.enabled is False
+
+
+async def test_events_name_each_alarm_clocks_own_device(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+) -> None:
+    """With two alarm clocks, each event carries the device of its own one."""
+    second = MockConfigEntry(
+        domain=DOMAIN,
+        title="Alarm 2",
+        data={},
+        options=dict(config_entry.options),
+        unique_id="wecker_2",
+        version=config_entry.version,
+        minor_version=config_entry.minor_version,
+    )
+    entries = (config_entry, second)
+    for entry in entries:
+        entry.add_to_hass(hass)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    seen: list[Event] = []
+
+    @callback
+    def _record(event: Event) -> None:
+        seen.append(event)
+
+    hass.bus.async_listen(EVENT_ALARM_TRIGGERED, _record)
+    for entry in entries:
+        await entry.runtime_data.async_trigger_alarm()
+    await hass.async_block_till_done()
+
+    registry = dr.async_get(hass)
+    expected = [
+        dr.async_entries_for_config_entry(registry, entry.entry_id)[0].id
+        for entry in entries
+    ]
+    assert None not in expected and len(set(expected)) == 2
+    assert [event.data["device_id"] for event in seen] == expected

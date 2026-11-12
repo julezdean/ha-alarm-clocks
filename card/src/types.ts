@@ -61,6 +61,8 @@ export interface HomeAssistant {
   devices: Record<string, DeviceRegistryDisplayEntry>;
   locale: FrontendLocaleData;
   language?: string;
+  /** The frontend's translations; returns an empty string for a key it has not loaded. */
+  localize?: (key: string) => string;
   themes?: unknown;
   callService(
     domain: string,
@@ -107,6 +109,8 @@ export interface MacaAlarmDisplayOptions {
   show_next_alarm?: boolean;
   show_settings?: boolean;
   show_test_button?: boolean;
+  /** Show the media player, ringtone and volume of the built-in alarm sound. */
+  show_sound?: boolean;
   minute_step?: number;
   /** Whether a row can be expanded and collapsed by clicking it. Default `true`. */
   expandable?: boolean;

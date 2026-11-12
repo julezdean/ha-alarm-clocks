@@ -23,6 +23,7 @@ export const DEVICE_DEFAULTS = {
   show_next_alarm: true,
   show_settings: true,
   show_test_button: false,
+  show_sound: true,
   minute_step: 5,
   expandable: true,
   expanded: false,
@@ -277,6 +278,7 @@ export class MacaAlarmCard extends LitElement {
         .showNextAlarm=${this._resolve(view, "show_next_alarm")}
         .showSettings=${this._resolve(view, "show_settings")}
         .showTestButton=${this._resolve(view, "show_test_button")}
+        .showSound=${this._resolve(view, "show_sound")}
         .minuteStep=${this._resolve(view, "minute_step")}
         @toggle-expand=${this._onToggleExpand}
       ></alarm-clocks-item>
