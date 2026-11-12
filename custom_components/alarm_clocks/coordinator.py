@@ -396,6 +396,8 @@ class AlarmClockCoordinator(DataUpdateCoordinator[AlarmClockSnapshot]):
             self.runtime.pre_until = None
         elif self.runtime.pre_until is not None:
             self.runtime.pre_until = next_regular
+        else:
+            self.runtime.pre_until = next_regular
         self._async_set_timer(TIMER_PRE, pre_at, self._handle_pre)
 
         self._async_set_timer(
